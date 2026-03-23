@@ -2,18 +2,19 @@ import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
 import {
-  BookOpen,
-  Dumbbell,
-  LayoutDashboard,
-  ListChecks,
-  LogOut,
-  Menu,
-  Plus,
-  Timer,
-  User,
-  Users,
-  X,
-  Zap,
+    BookOpen,
+    Dumbbell,
+    LayoutDashboard,
+    ListChecks,
+    LogOut,
+    Menu,
+    Plus,
+    Shield,
+    Timer,
+    User,
+    Users,
+    X,
+    Zap,
 } from "lucide-react";
 import { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
@@ -24,6 +25,7 @@ const athleteLinks = [
   { to: "/plans", label: "Planes", icon: BookOpen },
   { to: "/sessions", label: "Historial", icon: ListChecks },
   { to: "/xp", label: "Experiencia", icon: Zap },
+  { to: "/divisions", label: "Liga", icon: Shield },
   { to: "/timer", label: "Timer", icon: Timer },
 ];
 

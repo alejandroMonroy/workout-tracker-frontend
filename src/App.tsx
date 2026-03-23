@@ -3,6 +3,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import { AuthProvider } from "@/hooks/useAuth";
 import CoachPage from "@/pages/CoachPage";
 import DashboardPage from "@/pages/DashboardPage";
+import DivisionsPage from "@/pages/DivisionsPage";
 import ExercisesPage from "@/pages/ExercisesPage";
 import LoginPage from "@/pages/LoginPage";
 import PlansPage from "@/pages/PlansPage";
@@ -32,6 +33,7 @@ export default function App() {
               <Route path="/sessions" element={<SessionsPage />} />
               <Route path="/sessions/:id" element={<SessionDetailPage />} />
               <Route path="/xp" element={<XPPage />} />
+              <Route path="/divisions" element={<DivisionsPage />} />
               <Route path="/timer" element={<TimerPage />} />
               <Route path="/coach" element={<CoachPage />} />
               <Route path="/profile" element={<ProfilePage />} />

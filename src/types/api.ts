@@ -330,3 +330,52 @@ export interface LeaderboardEntry {
   rank: number;
   avatar_url: string | null;
 }
+
+// === Divisions / Leagues ===
+
+export type Division =
+  | "bronce"
+  | "plata"
+  | "oro"
+  | "platino"
+  | "diamante"
+  | "elite";
+
+export interface LeagueStanding {
+  user_id: number;
+  name: string;
+  avatar_url: string | null;
+  weekly_xp: number;
+  rank: number;
+  promoted: boolean;
+  demoted: boolean;
+  is_current_user: boolean;
+}
+
+export interface CurrentDivision {
+  division: Division;
+  division_display: string;
+  division_order: number;
+  total_divisions: number;
+  weekly_xp: number;
+  days_remaining: number;
+  week_start: string;
+  week_end: string;
+  group_number: number;
+  total_groups: number;
+  standings: LeagueStanding[];
+  promote_count: number;
+  demote_count: number;
+}
+
+export interface WeekHistory {
+  week_start: string;
+  week_end: string;
+  division: Division;
+  division_display: string;
+  weekly_xp: number;
+  final_rank: number | null;
+  promoted: boolean;
+  demoted: boolean;
+  group_size: number;
+}
