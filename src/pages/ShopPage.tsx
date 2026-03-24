@@ -10,11 +10,11 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
-type Tab = "products" | "discounts";
+type Tab = "product" | "discount";
 
 export default function ShopPage() {
   const { user } = useAuth();
-  const [tab, setTab] = useState<Tab>("products");
+  const [tab, setTab] = useState<Tab>("product");
   const [items, setItems] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -57,7 +57,7 @@ export default function ShopPage() {
 
       {/* Tabs */}
       <div className="flex items-center gap-2">
-        {(["products", "discounts"] as Tab[]).map((t) => (
+        {(["product", "discount"] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -67,7 +67,7 @@ export default function ShopPage() {
                 : "bg-secondary text-foreground hover:bg-secondary/80"
             }`}
           >
-            {t === "products" ? (
+            {t === "product" ? (
               <><Package className="h-4 w-4" /> Productos</>
             ) : (
               <><Percent className="h-4 w-4" /> Descuentos</>
@@ -84,7 +84,7 @@ export default function ShopPage() {
         <div className="rounded-xl bg-card shadow-sm p-12 text-center">
           <ShoppingBag className="mx-auto h-10 w-10 text-muted-foreground/40" />
           <p className="mt-2 text-sm text-muted-foreground">
-            No hay {tab === "products" ? "productos" : "descuentos"} disponibles todavía.
+            No hay {tab === "product" ? "productos" : "descuentos"} disponibles todavía.
           </p>
         </div>
       ) : (
@@ -94,52 +94,49 @@ export default function ShopPage() {
             return (
               <div
                 key={p.id}
-                className={`rounded-xl bg-card shadow-sm overflow-hidden transition-shadow ${
+                className={`rounded-xl bg-card border border-border shadow-sm overflow-hidden transition-shadow ${
                   canAfford ? "hover:shadow-md" : "opacity-60"
                 }`}
               >
-                {/* Image / placeholder */}
-                {p.image_url ? (
-                  <div className="relative">
-                    <img
-                      src={p.image_url}
-                      alt={p.name}
-                      className="h-40 w-full object-cover"
-                    />
-                    {p.item_type === "discount" && p.discount_pct != null && (
-                      <span className="absolute top-2 right-2 rounded-full bg-accent text-white text-xs font-bold px-2.5 py-1">
-                        -{p.discount_pct}%
-                      </span>
-                    )}
-                  </div>
-                ) : (
-                  <div className="relative flex h-40 items-center justify-center bg-muted">
-                    {p.item_type === "discount" ? (
-                      <Percent className="h-12 w-12 text-accent/40" />
-                    ) : (
-                      <Package className="h-12 w-12 text-muted-foreground/30" />
-                    )}
-                    {p.item_type === "discount" && p.discount_pct != null && (
-                      <span className="absolute top-2 right-2 rounded-full bg-accent text-white text-xs font-bold px-2.5 py-1">
-                        -{p.discount_pct}%
-                      </span>
-                    )}
-                  </div>
-                )}
-
-                <div className="p-4 space-y-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <h3 className="font-semibold leading-tight">{p.name}</h3>
-                  </div>
-                  <p className="text-xs text-muted-foreground">{p.company_name}</p>
-                  {p.description && (
-                    <p className="text-xs text-muted-foreground line-clamp-2">
-                      {p.description}
+                {/* Header */}
+                <div className="flex items-center justify-between px-4 pt-4 pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div
+                      className={`flex h-9 w-9 items-center justify-center rounded-lg ${
+                        p.item_type === "discount"
+                          ? "bg-accent/10"
+                          : "bg-primary/10"
+                      }`}
+                    >
+                      {p.item_type === "discount" ? (
+                        <Percent className="h-4 w-4 text-accent" />
+                      ) : (
+                        <Package className="h-4 w-4 text-primary" />
+                      )}
+                    </div>
+                    <p className="text-xs font-medium text-muted-foreground">
+                      {p.company_name}
                     </p>
+                  </div>
+                  {p.item_type === "discount" && p.discount_pct != null && (
+                    <span className="rounded-full bg-accent/10 text-accent text-xs font-bold px-2.5 py-1">
+                      -{p.discount_pct}%
+                    </span>
                   )}
+                </div>
+
+                <div className="px-4 pb-4 space-y-3">
+                  <div>
+                    <h3 className="font-semibold leading-tight">{p.name}</h3>
+                    {p.description && (
+                      <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
+                        {p.description}
+                      </p>
+                    )}
+                  </div>
 
                   {/* XP cost + action */}
-                  <div className="flex items-center justify-between pt-1">
+                  <div className="flex items-center justify-between">
                     <span
                       className={`inline-flex items-center gap-1 text-sm font-bold ${
                         canAfford ? "text-yellow-600" : "text-muted-foreground"
