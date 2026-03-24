@@ -3,13 +3,17 @@ import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
 import {
     BookOpen,
+    Building2,
+    Calendar,
     Dumbbell,
+    HeartHandshake,
     LayoutDashboard,
     ListChecks,
     LogOut,
     Menu,
     Plus,
     Shield,
+    ShoppingBag,
     Timer,
     User,
     Users,
@@ -26,6 +30,10 @@ const athleteLinks = [
   { to: "/sessions", label: "Historial", icon: ListChecks },
   { to: "/xp", label: "Experiencia", icon: Zap },
   { to: "/divisions", label: "Liga", icon: Shield },
+  { to: "/centers", label: "Centros", icon: Building2 },
+  { to: "/coaches", label: "Coaches", icon: HeartHandshake },
+  { to: "/shop", label: "Tienda", icon: ShoppingBag },
+  { to: "/events", label: "Eventos", icon: Calendar },
   { to: "/timer", label: "Timer", icon: Timer },
 ];
 

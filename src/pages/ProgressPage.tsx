@@ -101,9 +101,9 @@ export default function ProgressPage() {
         </div>
       ) : (
         <div className="space-y-6">
-          {/* 1RM / Max Weight chart */}
+          {/* Max Weight chart */}
           <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
-            <h3 className="mb-4 font-semibold">Peso Máximo & 1RM Estimado</h3>
+            <h3 className="mb-4 font-semibold">Peso Máximo</h3>
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -125,16 +125,6 @@ export default function ProgressPage() {
                   name="Peso máximo"
                   stroke="#6366f1"
                   strokeWidth={2}
-                  dot={{ r: 4 }}
-                  connectNulls
-                />
-                <Line
-                  type="monotone"
-                  dataKey="estimated_1rm"
-                  name="1RM estimado"
-                  stroke="#10b981"
-                  strokeWidth={2}
-                  strokeDasharray="5 5"
                   dot={{ r: 4 }}
                   connectNulls
                 />

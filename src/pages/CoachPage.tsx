@@ -1,29 +1,31 @@
 import { cn, formatDate, formatDuration } from "@/lib/utils";
 import { api } from "@/services/api";
 import type {
-  BlockType,
-  Exercise,
-  Plan,
-  PlanListItem,
-  SessionListItem,
-  TrainingSummary,
-  User,
-  WorkoutModality,
+    BlockType,
+    CoachRequest,
+    Exercise,
+    Plan,
+    PlanListItem,
+    SessionListItem,
+    TrainingSummary,
+    User,
+    WorkoutModality,
 } from "@/types/api";
 import {
-  Activity,
-  BookOpen,
-  Calendar,
-  ChevronDown,
-  ChevronUp,
-  Dumbbell,
-  Loader2,
-  Plus,
-  Send,
-  Trash2,
-  UserPlus,
-  Users,
-  X,
+    Activity,
+    BookOpen,
+    Calendar,
+    Check,
+    ChevronDown,
+    ChevronUp,
+    Dumbbell,
+    Loader2,
+    Plus,
+    Send,
+    Trash2,
+    UserPlus,
+    Users,
+    X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -139,13 +141,42 @@ function AthletesTab() {
   const [assigning, setAssigning] = useState(false);
   const [assignMsg, setAssignMsg] = useState("");
 
+  // Athlete requests state
+  const [requests, setRequests] = useState<CoachRequest[]>([]);
+  const [respondingId, setRespondingId] = useState<number | null>(null);
+
   useEffect(() => {
-    api
-      .get<Athlete[]>("/api/coach/athletes")
-      .then(setAthletes)
+    Promise.all([
+      api.get<Athlete[]>("/api/coach/athletes"),
+      api.get<CoachRequest[]>("/api/coach/requests/pending"),
+    ])
+      .then(([ath, reqs]) => {
+        setAthletes(ath);
+        setRequests(reqs);
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  const handleAcceptRequest = async (requestId: number) => {
+    setRespondingId(requestId);
+    try {
+      await api.post(`/api/coach/requests/${requestId}/accept`);
+      setRequests((prev) => prev.filter((r) => r.id !== requestId));
+      const list = await api.get<Athlete[]>("/api/coach/athletes");
+      setAthletes(list);
+    } catch {}
+    setRespondingId(null);
+  };
+
+  const handleRejectRequest = async (requestId: number) => {
+    setRespondingId(requestId);
+    try {
+      await api.post(`/api/coach/requests/${requestId}/reject`);
+      setRequests((prev) => prev.filter((r) => r.id !== requestId));
+    } catch {}
+    setRespondingId(null);
+  };
 
   const handleInvite = async () => {
     if (!inviteEmail.trim()) return;
@@ -273,6 +304,55 @@ function AthletesTab() {
           <p className="mt-2 text-sm text-muted-foreground">{inviteMsg}</p>
         )}
       </div>
+
+      {/* Athlete requests */}
+      {requests.length > 0 && (
+        <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-4 shadow-sm">
+          <h2 className="mb-3 flex items-center gap-2 font-semibold text-indigo-800">
+            <Send className="h-4 w-4" />
+            Solicitudes de atletas ({requests.length})
+          </h2>
+          <div className="space-y-2">
+            {requests.map((req) => (
+              <div
+                key={req.id}
+                className="flex items-center justify-between rounded-md bg-white px-4 py-3 shadow-sm"
+              >
+                <div>
+                  <p className="text-sm font-medium text-foreground">
+                    {req.athlete.name}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {req.athlete.email}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleAcceptRequest(req.id)}
+                    disabled={respondingId === req.id}
+                    className="flex items-center gap-1 rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent/90 disabled:opacity-50"
+                  >
+                    {respondingId === req.id ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Check className="h-3.5 w-3.5" />
+                    )}
+                    Aceptar
+                  </button>
+                  <button
+                    onClick={() => handleRejectRequest(req.id)}
+                    disabled={respondingId === req.id}
+                    className="flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-secondary disabled:opacity-50"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    Rechazar
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="flex h-32 items-center justify-center">

@@ -342,7 +342,7 @@ function StandingsTab({
 
           // Promotion / demotion line separators
           let separator = null;
-          if (entry.rank === promoteCount && entry.rank < groupSize) {
+          if (entry.rank === promoteCount + 1 && promoteCount < groupSize) {
             separator = (
               <div className="flex items-center gap-2 px-5 py-1 bg-green-50 border-t border-dashed border-green-300">
                 <div className="flex-1 border-t border-dashed border-green-300" />

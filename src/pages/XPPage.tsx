@@ -3,18 +3,18 @@ import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
 import type { LeaderboardEntry, XPSummary, XPTransaction } from "@/types/api";
 import {
-  Crown,
-  Flame,
-  Medal,
-  Sparkles,
-  Star,
-  Swords,
-  Target,
-  Timer,
-  Trophy,
-  TrendingUp,
-  User as UserIcon,
-  Zap,
+    Crown,
+    Flame,
+    Medal,
+    Sparkles,
+    Star,
+    Swords,
+    Target,
+    Timer,
+    TrendingUp,
+    Trophy,
+    User as UserIcon,
+    Zap,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -172,7 +172,7 @@ export default function XPPage() {
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {[
           { label: "Sesión", xp: 50, icon: Target, color: "text-blue-500" },
-          { label: "Récord", xp: 100, icon: Trophy, color: "text-yellow-500" },
+          { label: "Récord", xp: 25, icon: Trophy, color: "text-yellow-500" },
           { label: "Racha", xp: "25×día", icon: Flame, color: "text-orange-500" },
           { label: "7 días", xp: 150, icon: Crown, color: "text-red-500" },
         ].map((item) => (

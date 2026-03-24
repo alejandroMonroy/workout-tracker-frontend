@@ -204,6 +204,7 @@ export interface Plan {
   duration_weeks: number | null;
   is_public: boolean;
   created_by: number;
+  coach_name: string | null;
   created_at: string;
   sessions: PlanSession[];
 }
@@ -215,6 +216,7 @@ export interface PlanListItem {
   duration_weeks: number | null;
   is_public: boolean;
   created_by: number;
+  coach_name: string | null;
   created_at: string;
   session_count: number;
 }
@@ -231,7 +233,6 @@ export interface Subscription {
 // === Records ===
 
 export type RecordType =
-  | "1rm"
   | "max_reps"
   | "best_time"
   | "max_distance"
@@ -256,6 +257,23 @@ export interface CoachInvite {
   created_at: string;
 }
 
+export interface CoachProfile {
+  id: number;
+  name: string;
+  email: string;
+  avatar_url: string | null;
+  athlete_count: number;
+  plan_count: number;
+  relationship_status: string | null;
+  relationship_initiated_by: string | null;
+}
+
+export interface CoachRequest {
+  id: number;
+  athlete: User;
+  created_at: string;
+}
+
 // === Stats ===
 
 export interface TimelinePoint {
@@ -270,7 +288,6 @@ export interface TimelinePoint {
 export interface ProgressPoint {
   date: string;
   max_weight: number | null;
-  estimated_1rm: number | null;
   volume: number;
   max_reps: number | null;
   max_distance: number | null;
@@ -378,4 +395,220 @@ export interface WeekHistory {
   promoted: boolean;
   demoted: boolean;
   group_size: number;
+}
+
+// === Training Centers ===
+
+export type CenterMemberRole = "member" | "coach" | "admin";
+export type CenterMemberStatus = "pending" | "active" | "rejected" | "cancelled";
+
+export interface TrainingCenter {
+  id: number;
+  name: string;
+  description: string | null;
+  address: string | null;
+  city: string | null;
+  phone: string | null;
+  email: string | null;
+  website: string | null;
+  logo_url: string | null;
+  owner_id: number;
+  owner_name: string;
+  is_active: boolean;
+  member_count: number;
+  created_at: string;
+}
+
+export interface TrainingCenterListItem {
+  id: number;
+  name: string;
+  city: string | null;
+  logo_url: string | null;
+  member_count: number;
+  is_active: boolean;
+}
+
+export interface CenterMembership {
+  id: number;
+  center_id: number;
+  user_id: number;
+  user_name: string;
+  role: CenterMemberRole;
+  status: CenterMemberStatus;
+  created_at: string;
+}
+
+export interface MyCenterMembership {
+  id: number;
+  center_id: number;
+  center_name: string;
+  role: CenterMemberRole;
+  status: CenterMemberStatus;
+  created_at: string;
+}
+
+export interface CenterPlan {
+  id: number;
+  center_id: number;
+  plan_id: number;
+  plan_name: string;
+  coach_name: string;
+  published_at: string;
+}
+
+// === Partner Companies ===
+
+export interface PartnerCompany {
+  id: number;
+  name: string;
+  description: string | null;
+  logo_url: string | null;
+  website: string | null;
+  contact_email: string | null;
+  is_active: boolean;
+  product_count: number;
+  created_at: string;
+}
+
+export interface PartnerCompanyListItem {
+  id: number;
+  name: string;
+  logo_url: string | null;
+  product_count: number;
+  is_active: boolean;
+}
+
+export interface Product {
+  id: number;
+  company_id: number;
+  company_name: string;
+  name: string;
+  description: string | null;
+  item_type: "product" | "discount";
+  xp_cost: number | null;
+  discount_pct: number | null;
+  price: number | null;
+  currency: string;
+  image_url: string | null;
+  external_url: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
+// === Events ===
+
+export type EventStatus = "draft" | "published" | "cancelled" | "completed";
+export type RegistrationStatus = "registered" | "cancelled" | "attended";
+
+export type EventType = "competition" | "workshop" | "exhibition" | "social" | "open_day" | "seminar" | "other";
+
+export interface AppEvent {
+  id: number;
+  name: string;
+  description: string | null;
+  event_date: string;
+  end_date: string | null;
+  location: string | null;
+  capacity: number | null;
+  image_url: string | null;
+  status: EventStatus;
+  event_type: EventType;
+  is_public: boolean;
+  center_id: number | null;
+  company_id: number | null;
+  center_name: string | null;
+  company_name: string | null;
+  registered_count: number;
+  is_registered: boolean;
+  created_at: string;
+}
+
+export interface EventListItem {
+  id: number;
+  name: string;
+  description: string | null;
+  event_date: string;
+  end_date: string | null;
+  location: string | null;
+  capacity: number | null;
+  image_url: string | null;
+  status: EventStatus;
+  event_type: EventType;
+  center_name: string | null;
+  company_name: string | null;
+  registered_count: number;
+  is_registered: boolean;
+}
+
+export interface EventRegistration {
+  id: number;
+  event_id: number;
+  user_id: number;
+  user_name: string;
+  status: RegistrationStatus;
+  registered_at: string;
+}
+
+export interface EventCollaborator {
+  id: number;
+  event_id: number;
+  company_id: number | null;
+  company_name: string | null;
+  center_id: number | null;
+  center_name: string | null;
+  created_at: string;
+}
+
+// === Dashboard ===
+
+export interface DashboardSummary {
+  training: {
+    total_sessions: number;
+    total_volume_kg: number;
+    total_sets: number;
+    total_time_sec: number;
+    distinct_exercises: number;
+    avg_rpe: number | null;
+  };
+  recent_sessions: {
+    id: number;
+    started_at: string;
+    finished_at: string | null;
+    total_duration_sec: number | null;
+    exercise_count: number;
+    set_count: number;
+    rpe: number | null;
+  }[];
+  session_dates: { date: string; count: number }[];
+  upcoming_events: {
+    id: number;
+    name: string;
+    event_date: string;
+    end_date: string | null;
+    location: string | null;
+    event_type: EventType;
+  }[];
+  xp: {
+    total_xp: number;
+    level: number;
+    xp_progress: number;
+    xp_needed: number;
+    progress_pct: number;
+  };
+  league: {
+    division: string;
+    division_display: string;
+    weekly_xp: number;
+    rank: number;
+    group_size: number;
+    days_remaining: number;
+  } | null;
+  records: {
+    id: number;
+    exercise_id: number;
+    record_type: string;
+    value: number;
+    achieved_at: string;
+  }[];
+  streak: number;
 }

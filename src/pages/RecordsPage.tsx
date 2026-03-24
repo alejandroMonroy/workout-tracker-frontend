@@ -5,7 +5,6 @@ import { Trophy } from "lucide-react";
 import { useEffect, useState } from "react";
 
 const TYPE_LABELS: Record<string, string> = {
-  "1rm": "1RM Estimado",
   max_reps: "Max Reps",
   best_time: "Mejor Tiempo",
   max_distance: "Max Distancia",
@@ -13,7 +12,6 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 const TYPE_UNITS: Record<string, string> = {
-  "1rm": "kg",
   max_reps: "reps",
   best_time: "s",
   max_distance: "m",

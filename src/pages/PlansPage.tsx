@@ -14,6 +14,7 @@ import {
     Loader2,
     Play,
     Star,
+    Users,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -202,6 +203,12 @@ export default function PlansPage() {
                     <h3 className="font-semibold">
                       {sub.plan?.name ?? `Plan #${sub.plan_id}`}
                     </h3>
+                    {sub.plan?.coach_name && (
+                      <p className="mt-0.5 flex items-center gap-1 text-xs text-primary">
+                        <Users className="h-3 w-3" />
+                        {sub.plan.coach_name}
+                      </p>
+                    )}
                     {sub.plan?.description && (
                       <p className="mt-0.5 text-sm text-muted-foreground line-clamp-1">
                         {sub.plan.description}
@@ -273,6 +280,12 @@ export default function PlansPage() {
                 className="rounded-lg border border-border bg-card p-5 shadow-sm"
               >
                 <h3 className="font-semibold">{plan.name}</h3>
+                {plan.coach_name && (
+                  <p className="mt-0.5 flex items-center gap-1 text-xs text-primary">
+                    <Users className="h-3 w-3" />
+                    {plan.coach_name}
+                  </p>
+                )}
                 {plan.description && (
                   <p className="mt-1.5 text-sm text-muted-foreground line-clamp-2">
                     {plan.description}
