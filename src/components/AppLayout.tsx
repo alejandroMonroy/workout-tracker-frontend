@@ -9,6 +9,7 @@ import {
     Plus,
     Shield,
     User,
+    Users,
     X,
 } from "lucide-react";
 import { useState } from "react";
@@ -17,6 +18,7 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 const athleteLinks = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/divisions", label: "Liga", icon: Shield },
+  { to: "/athletes", label: "Atletas", icon: Users },
 ];
 
 export default function AppLayout() {

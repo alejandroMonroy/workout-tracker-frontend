@@ -1,6 +1,7 @@
 import AppLayout from "@/components/AppLayout";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { AuthProvider } from "@/hooks/useAuth";
+import AthletesPage from "@/pages/AthletesPage";
 import DashboardPage from "@/pages/DashboardPage";
 import DivisionsPage from "@/pages/DivisionsPage";
 import LoginPage from "@/pages/LoginPage";
@@ -23,6 +24,7 @@ export default function App() {
             <Route element={<AppLayout />}>
               <Route path="/" element={<DashboardPage />} />
               <Route path="/divisions" element={<DivisionsPage />} />
+              <Route path="/athletes" element={<AthletesPage />} />
               <Route path="/sessions/:id" element={<SessionDetailPage />} />
               <Route path="/profile" element={<ProfilePage />} />
             </Route>

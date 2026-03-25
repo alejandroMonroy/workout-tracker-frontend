@@ -642,6 +642,55 @@ export interface EventCollaborator {
   created_at: string;
 }
 
+// === Athletes / Friends ===
+
+export type FriendshipStatus = "pending_sent" | "pending_received" | "accepted";
+
+export interface AthletePublic {
+  id: number;
+  name: string;
+  avatar_url: string | null;
+  level: number;
+  total_xp: number;
+  current_division: string | null;
+  friendship_id: number | null;
+  friendship_status: FriendshipStatus | null;
+}
+
+export interface RecordPublic {
+  id: number;
+  exercise_id: number;
+  exercise_name: string;
+  record_type: string;
+  value: number;
+  achieved_at: string;
+}
+
+export interface RecentSessionPublic {
+  id: number;
+  started_at: string;
+  finished_at: string | null;
+  total_duration_sec: number | null;
+  exercise_count: number;
+  set_count: number;
+}
+
+export interface AthleteProfile extends AthletePublic {
+  sessions_30d: number;
+  total_sessions: number;
+  records: RecordPublic[];
+  recent_sessions: RecentSessionPublic[];
+}
+
+export interface FriendshipResponse {
+  id: number;
+  requester_id: number;
+  addressee_id: number;
+  status: "pending" | "accepted";
+  created_at: string;
+  other_user: AthletePublic;
+}
+
 // === Dashboard ===
 
 export interface DashboardSummary {
