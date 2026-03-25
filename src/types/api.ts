@@ -230,6 +230,19 @@ export interface Subscription {
   plan?: PlanListItem;
 }
 
+export type PlanEnrollmentStatus = "active" | "completed" | "cancelled";
+
+export interface PlanEnrollment {
+  id: number;
+  plan_id: number;
+  athlete_id: number;
+  coach_subscription_id: number | null;
+  assigned_by_coach: boolean;
+  status: PlanEnrollmentStatus;
+  enrolled_at: string;
+  plan?: PlanListItem;
+}
+
 // === Records ===
 
 export type RecordType =
@@ -257,6 +270,8 @@ export interface CoachInvite {
   created_at: string;
 }
 
+export type CoachSubscriptionStatus = "pending" | "active" | "cancelled" | "expired";
+
 export interface CoachProfile {
   id: number;
   name: string;
@@ -264,13 +279,26 @@ export interface CoachProfile {
   avatar_url: string | null;
   athlete_count: number;
   plan_count: number;
-  relationship_status: string | null;
-  relationship_initiated_by: string | null;
+  xp_per_month: number;
+  subscription_status: CoachSubscriptionStatus | null;
+  subscription_initiated_by: "coach" | "athlete" | null;
+}
+
+export interface CoachSubscription {
+  id: number;
+  athlete_id: number;
+  athlete: User;
+  status: CoachSubscriptionStatus;
+  xp_per_month: number;
+  started_at: string | null;
+  expires_at: string | null;
+  created_at: string;
 }
 
 export interface CoachRequest {
   id: number;
   athlete: User;
+  xp_per_month: number;
   created_at: string;
 }
 
@@ -316,7 +344,10 @@ export type XPReason =
   | "long_session"
   | "high_volume"
   | "consistency"
-  | "manual";
+  | "manual"
+  | "subscription_payment"
+  | "event_registration"
+  | "product_redemption";
 
 export interface XPTransaction {
   id: number;
@@ -401,6 +432,9 @@ export interface WeekHistory {
 
 export type CenterMemberRole = "member" | "coach" | "admin";
 export type CenterMemberStatus = "pending" | "active" | "rejected" | "cancelled";
+export type CenterSubscriptionStatus = "pending" | "active" | "cancelled" | "expired";
+export type ClassStatus = "scheduled" | "completed" | "cancelled";
+export type ClassBookingStatus = "reserved" | "attended" | "cancelled";
 
 export interface TrainingCenter {
   id: number;
@@ -415,6 +449,7 @@ export interface TrainingCenter {
   owner_id: number;
   owner_name: string;
   is_active: boolean;
+  monthly_xp: number;
   member_count: number;
   created_at: string;
 }
@@ -424,6 +459,7 @@ export interface TrainingCenterListItem {
   name: string;
   city: string | null;
   logo_url: string | null;
+  monthly_xp: number;
   member_count: number;
   is_active: boolean;
 }
@@ -454,6 +490,44 @@ export interface CenterPlan {
   plan_name: string;
   coach_name: string;
   published_at: string;
+}
+
+export interface CenterSubscription {
+  id: number;
+  center_id: number;
+  center_name: string;
+  athlete_id: number;
+  athlete_name: string;
+  status: CenterSubscriptionStatus;
+  xp_per_month: number;
+  started_at: string | null;
+  expires_at: string | null;
+  created_at: string;
+}
+
+export interface CenterClass {
+  id: number;
+  center_id: number;
+  coach_id: number;
+  coach_name: string;
+  name: string;
+  description: string | null;
+  scheduled_at: string;
+  duration_min: number | null;
+  max_capacity: number | null;
+  template_id: number | null;
+  status: ClassStatus;
+  booking_count: number;
+  created_at: string;
+}
+
+export interface ClassBooking {
+  id: number;
+  class_id: number;
+  athlete_id: number;
+  athlete_name: string;
+  status: ClassBookingStatus;
+  booked_at: string;
 }
 
 // === Partner Companies ===
@@ -495,6 +569,13 @@ export interface Product {
   created_at: string;
 }
 
+export interface ProductRedemptionResult {
+  message: string;
+  product_id: number;
+  xp_spent: number;
+  external_url: string | null;
+}
+
 // === Events ===
 
 export type EventStatus = "draft" | "published" | "cancelled" | "completed";
@@ -514,6 +595,7 @@ export interface AppEvent {
   status: EventStatus;
   event_type: EventType;
   is_public: boolean;
+  xp_cost: number | null;
   center_id: number | null;
   company_id: number | null;
   center_name: string | null;
@@ -534,6 +616,7 @@ export interface EventListItem {
   image_url: string | null;
   status: EventStatus;
   event_type: EventType;
+  xp_cost: number | null;
   center_name: string | null;
   company_name: string | null;
   registered_count: number;

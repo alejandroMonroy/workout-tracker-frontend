@@ -2,9 +2,9 @@ import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
 import type {
     Plan,
+    PlanEnrollment,
     PlanListItem,
     PlanSession,
-    Subscription,
 } from "@/types/api";
 import {
     BookOpen,
@@ -37,12 +37,12 @@ const MODALITY_COLORS: Record<string, string> = {
   custom: "bg-gray-100 text-gray-700",
 };
 
-type Tab = "subscriptions" | "browse";
+type Tab = "enrollments" | "browse";
 
 export default function PlansPage() {
   const navigate = useNavigate();
-  const [tab, setTab] = useState<Tab>("subscriptions");
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [tab, setTab] = useState<Tab>("enrollments");
+  const [subscriptions, setSubscriptions] = useState<PlanEnrollment[]>([]);
   const [publicPlans, setPublicPlans] = useState<PlanListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedPlan, setExpandedPlan] = useState<number | null>(null);
@@ -52,7 +52,7 @@ export default function PlansPage() {
 
   useEffect(() => {
     Promise.all([
-      api.get<Subscription[]>("/api/plans/subscriptions/mine"),
+      api.get<PlanEnrollment[]>("/api/plans/enrollments/mine"),
       api.get<PlanListItem[]>("/api/plans"),
     ])
       .then(([subs, plans]) => {
@@ -86,15 +86,13 @@ export default function PlansPage() {
   const handleSubscribe = async (planId: number) => {
     setActionMsg("");
     try {
-      await api.post("/api/plans/subscribe", { plan_id: planId });
-      const subs = await api.get<Subscription[]>(
-        "/api/plans/subscriptions/mine",
-      );
+      await api.post("/api/plans/enroll", { plan_id: planId });
+      const subs = await api.get<PlanEnrollment[]>("/api/plans/enrollments/mine");
       setSubscriptions(subs);
-      setActionMsg("✅ Suscrito correctamente");
+      setActionMsg("✅ Inscrito correctamente");
     } catch (err) {
       setActionMsg(
-        `❌ ${err instanceof Error ? err.message : "Error al suscribirse"}`,
+        `❌ ${err instanceof Error ? err.message : "Error al inscribirse"}`,
       );
     }
   };
@@ -102,9 +100,9 @@ export default function PlansPage() {
   const handleUnsubscribe = async (subId: number) => {
     setActionMsg("");
     try {
-      await api.delete(`/api/plans/subscriptions/${subId}`);
+      await api.delete(`/api/plans/enrollments/${subId}`);
       setSubscriptions((prev) => prev.filter((s) => s.id !== subId));
-      setActionMsg("Suscripción cancelada");
+      setActionMsg("Inscripción cancelada");
     } catch {
       /* empty */
     }
@@ -138,10 +136,10 @@ export default function PlansPage() {
       {/* Tab bar */}
       <div className="flex gap-1 rounded-lg border border-border bg-secondary/50 p-1">
         <button
-          onClick={() => setTab("subscriptions")}
+          onClick={() => setTab("enrollments")}
           className={cn(
             "flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors",
-            tab === "subscriptions"
+            tab === "enrollments"
               ? "bg-white text-foreground shadow-sm"
               : "text-muted-foreground hover:text-foreground",
           )}
@@ -173,8 +171,8 @@ export default function PlansPage() {
         <div className="flex h-32 items-center justify-center">
           <div className="h-6 w-6 animate-spin rounded-full border-4 border-primary border-t-transparent" />
         </div>
-      ) : tab === "subscriptions" ? (
-        /* ── My subscriptions ── */
+      ) : tab === "enrollments" ? (
+        /* ── My enrollments ── */
         subscriptions.length === 0 ? (
           <div className="flex flex-col items-center gap-3 py-16 text-center">
             <BookOpen className="h-12 w-12 text-muted-foreground/50" />
@@ -187,6 +185,9 @@ export default function PlansPage() {
             >
               Explorar planes
             </button>
+            <p className="text-xs text-muted-foreground">
+              Inscríbete a planes públicos o accede a los privados de tu coach
+            </p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -241,7 +242,7 @@ export default function PlansPage() {
                       }}
                       className="rounded-md border border-red-200 px-2.5 py-1 text-xs font-medium text-red-500 hover:bg-red-50 hover:text-red-600"
                     >
-                      Eliminar suscripción
+                      Cancelar inscripción
                     </button>
                     {expandedPlan === sub.plan_id ? (
                       <ChevronUp className="h-5 w-5 text-muted-foreground" />
@@ -307,7 +308,7 @@ export default function PlansPage() {
                     className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-md bg-accent px-3 py-2 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent/90"
                   >
                     <Star className="h-3.5 w-3.5" />
-                    Suscribirme
+                    Inscribirme
                   </button>
                 )}
               </div>

@@ -11,6 +11,7 @@ import {
     List,
     MapPin,
     Users,
+    Zap,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -345,11 +346,16 @@ function EventCard({ ev, onRegister, onUnregister, compact = false }: { ev: Even
         <div className="flex items-center gap-2 text-xs pl-4">
           <span className={`rounded-full px-2 py-0.5 font-medium ${EVENT_TYPE_BADGE[ev.event_type]}`}>{EVENT_TYPE_LABELS[ev.event_type]}</span>
           <span className="flex items-center gap-0.5 text-muted-foreground"><Users className="h-3 w-3" />{ev.registered_count}{ev.capacity ? `/${ev.capacity}` : ""}</span>
+          {ev.xp_cost != null && ev.xp_cost > 0 && (
+            <span className="flex items-center gap-0.5 text-yellow-600 font-medium"><Zap className="h-3 w-3" />{ev.xp_cost} XP</span>
+          )}
           <span className="ml-auto">
             {ev.is_registered ? (
               <button onClick={() => onUnregister(ev.id)} className="text-xs text-red-600 hover:underline">Cancelar</button>
             ) : ev.status === "published" && !isPast ? (
-              <button onClick={() => onRegister(ev.id)} className="text-xs text-primary hover:underline font-medium">Inscribirme</button>
+              <button onClick={() => onRegister(ev.id)} className="text-xs text-primary hover:underline font-medium">
+                {ev.xp_cost != null && ev.xp_cost > 0 ? `Inscribirme (${ev.xp_cost} XP)` : "Inscribirme"}
+              </button>
             ) : null}
           </span>
         </div>
@@ -372,6 +378,9 @@ function EventCard({ ev, onRegister, onUnregister, compact = false }: { ev: Even
             <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />{fmtDate(ev.event_date)}{ev.end_date && ` – ${fmtDate(ev.end_date)}`}</span>
             {ev.location && <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{ev.location}</span>}
             <span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" />{ev.registered_count}{ev.capacity ? `/${ev.capacity}` : ""} inscritos</span>
+            {ev.xp_cost != null && ev.xp_cost > 0 && (
+              <span className="flex items-center gap-1 text-yellow-600 font-medium"><Zap className="h-3.5 w-3.5" />{ev.xp_cost.toLocaleString()} XP para inscribirse</span>
+            )}
           </div>
           {(ev.center_name || ev.company_name) && (
             <p className="text-xs text-muted-foreground">Organiza: <span className="font-medium text-foreground">{ev.center_name ?? ev.company_name}</span></p>
@@ -384,7 +393,8 @@ function EventCard({ ev, onRegister, onUnregister, compact = false }: { ev: Even
             </button>
           ) : ev.status === "published" && !isPast ? (
             <button onClick={() => onRegister(ev.id)} disabled={ev.capacity != null && ev.registered_count >= ev.capacity} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50">
-              <CalendarCheck className="h-4 w-4" /> Inscribirme
+              <CalendarCheck className="h-4 w-4" />
+              {ev.xp_cost != null && ev.xp_cost > 0 ? `Inscribirme · ${ev.xp_cost} XP` : "Inscribirme"}
             </button>
           ) : isPast ? (
             <span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><CheckCircle2 className="h-3.5 w-3.5" /> Finalizado</span>

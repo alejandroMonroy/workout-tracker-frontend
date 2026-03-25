@@ -1,19 +1,18 @@
 import { useAuth } from "@/hooks/useAuth";
 import { api } from "@/services/api";
 import type {
-    CenterMembership,
-    CenterPlan,
+    CenterClass,
+    CenterSubscription,
     MyCenterMembership,
     TrainingCenter,
     TrainingCenterListItem,
 } from "@/types/api";
 import {
     Building2,
+    Calendar,
     CheckCircle2,
     Clock,
     Globe,
-    LogIn,
-    LogOut,
     Mail,
     MapPin,
     Phone,
@@ -21,7 +20,17 @@ import {
     Users,
     X,
     XCircle,
+    Zap,
 } from "lucide-react";
+
+function XpBadge({ xp }: { xp: number }) {
+  return (
+    <span className="flex items-center gap-1 text-xs font-medium text-yellow-600">
+      <Zap className="h-3.5 w-3.5 text-yellow-500" />
+      {xp > 0 ? `${xp.toLocaleString()} XP/mes` : "Gratis"}
+    </span>
+  );
+}
 import { useCallback, useEffect, useState } from "react";
 
 /* ─── Helpers ─── */
@@ -45,6 +54,16 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+function fmtDateTime(iso: string) {
+  return new Date(iso).toLocaleDateString("es-ES", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 type Tab = "explore" | "mine";
 
 export default function CentersPage() {
@@ -53,10 +72,12 @@ export default function CentersPage() {
   const [tab, setTab] = useState<Tab>("explore");
   const [centers, setCenters] = useState<TrainingCenterListItem[]>([]);
   const [myMemberships, setMyMemberships] = useState<MyCenterMembership[]>([]);
+  const [mySubscriptions, setMySubscriptions] = useState<CenterSubscription[]>([]);
   const [selected, setSelected] = useState<TrainingCenter | null>(null);
-  const [members, setMembers] = useState<CenterMembership[]>([]);
-  const [plans, setPlans] = useState<CenterPlan[]>([]);
+  const [classes, setClasses] = useState<CenterClass[]>([]);
+  const [pendingSubs, setPendingSubs] = useState<CenterSubscription[]>([]);
   const [loading, setLoading] = useState(true);
+  const [actionMsg, setActionMsg] = useState("");
 
   /* create center form */
   const [showCreate, setShowCreate] = useState(false);
@@ -84,11 +105,15 @@ export default function CentersPage() {
     }
   }, []);
 
-  const fetchMyMemberships = useCallback(async () => {
+  const fetchMine = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await api.get<MyCenterMembership[]>("/api/centers/my/memberships");
-      setMyMemberships(data);
+      const [memberships, subs] = await Promise.all([
+        api.get<MyCenterMembership[]>("/api/centers/my/memberships"),
+        api.get<CenterSubscription[]>("/api/centers/my/subscriptions"),
+      ]);
+      setMyMemberships(memberships);
+      setMySubscriptions(subs);
     } catch {
       /* empty */
     } finally {
@@ -98,33 +123,64 @@ export default function CentersPage() {
 
   useEffect(() => {
     if (tab === "explore") fetchCenters();
-    else fetchMyMemberships();
-  }, [tab, fetchCenters, fetchMyMemberships]);
+    else fetchMine();
+  }, [tab, fetchCenters, fetchMine]);
 
   /* ─── Actions ─── */
 
   const openDetail = async (id: number) => {
+    setActionMsg("");
+    setPendingSubs([]);
     try {
-      const [center, memberList, planList] = await Promise.all([
+      const [center, classList] = await Promise.all([
         api.get<TrainingCenter>(`/api/centers/${id}`),
-        api.get<CenterMembership[]>(`/api/centers/${id}/members`),
-        api.get<CenterPlan[]>(`/api/centers/${id}/plans`),
+        api.get<CenterClass[]>(`/api/centers/${id}/classes`),
       ]);
       setSelected(center);
-      setMembers(memberList);
-      setPlans(planList);
+      setClasses(classList);
+      // Load pending subscriptions if the current user is the owner
+      if (user && (center.owner_id === user.id || user.role === "admin")) {
+        const subs = await api.get<CenterSubscription[]>(
+          `/api/centers/${id}/subscriptions?status=pending`,
+        );
+        setPendingSubs(subs);
+      }
     } catch {
       /* empty */
     }
   };
 
-  const joinCenter = async (centerId: number) => {
+  const handleSubDecision = async (centerId: number, subId: number, accept: boolean) => {
     try {
-      await api.post(`/api/centers/${centerId}/join`, { role: "member" });
-      if (selected) openDetail(centerId);
-      fetchMyMemberships();
-    } catch {
-      /* empty */
+      await api.patch(`/api/centers/${centerId}/subscriptions/${subId}?accept=${accept}`);
+      setPendingSubs((prev) => prev.filter((s) => s.id !== subId));
+      setActionMsg(accept ? "✅ Suscripción aceptada" : "✅ Suscripción rechazada");
+    } catch (err) {
+      setActionMsg(`❌ ${err instanceof Error ? err.message : "Error"}`);
+    }
+  };
+
+  const subscribeToCenter = async (centerId: number) => {
+    setActionMsg("");
+    try {
+      await api.post(`/api/centers/${centerId}/subscribe`, {});
+      setActionMsg("✅ Solicitud de suscripción enviada. Espera a que el centro la acepte.");
+      fetchMine();
+    } catch (err) {
+      setActionMsg(`❌ ${err instanceof Error ? err.message : "Error"}`);
+    }
+  };
+
+  const bookClass = async (centerId: number, classId: number) => {
+    setActionMsg("");
+    try {
+      await api.post(`/api/centers/${centerId}/classes/${classId}/book`, {});
+      setActionMsg("✅ Clase reservada correctamente");
+      // refresh classes
+      const classList = await api.get<CenterClass[]>(`/api/centers/${centerId}/classes`);
+      setClasses(classList);
+    } catch (err) {
+      setActionMsg(`❌ ${err instanceof Error ? err.message : "Error al reservar"}`);
     }
   };
 
@@ -139,6 +195,11 @@ export default function CentersPage() {
     }
   };
 
+  /* subscription status for selected center */
+  const selectedSub = selected
+    ? mySubscriptions.find((s) => s.center_id === selected.id)
+    : null;
+
   /* ─── Render ─── */
 
   return (
@@ -150,7 +211,7 @@ export default function CentersPage() {
             Centros de Entrenamiento
           </h1>
           <p className="text-sm text-muted-foreground">
-            Encuentra un centro, únete y accede a sus planes y eventos.
+            Encuentra un centro, suscríbete y accede a sus clases y planes.
           </p>
         </div>
         {isAdmin && (
@@ -224,44 +285,85 @@ export default function CentersPage() {
                     )}
                   </div>
                 </div>
-                <div className="mt-3 flex items-center gap-1 text-xs text-muted-foreground">
-                  <Users className="h-3.5 w-3.5" />
-                  {c.member_count} miembros
+                <div className="mt-3 flex items-center justify-between">
+                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <Users className="h-3.5 w-3.5" />
+                    {c.member_count} miembros
+                  </span>
+                  <XpBadge xp={c.monthly_xp} />
                 </div>
               </button>
             ))}
           </div>
         )
       ) : (
-        /* ── My memberships ── */
-        myMemberships.length === 0 ? (
+        /* ── My centers ── */
+        myMemberships.length === 0 && mySubscriptions.length === 0 ? (
           <div className="rounded-lg border border-dashed p-12 text-center">
-            <LogIn className="mx-auto h-10 w-10 text-muted-foreground/40" />
+            <Building2 className="mx-auto h-10 w-10 text-muted-foreground/40" />
             <p className="mt-2 text-sm text-muted-foreground">
               Aún no perteneces a ningún centro.
             </p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {myMemberships.map((m) => (
-              <div
-                key={m.id}
-                className="flex items-center justify-between rounded-xl bg-card p-4 shadow-sm"
-              >
-                <div>
-                  <button
-                    onClick={() => openDetail(m.center_id)}
-                    className="font-semibold hover:underline"
-                  >
-                    {m.center_name}
-                  </button>
-                  <p className="text-xs text-muted-foreground capitalize">
-                    {m.role}
-                  </p>
+          <div className="space-y-4">
+            {mySubscriptions.length > 0 && (
+              <div>
+                <h2 className="mb-2 text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                  Suscripciones
+                </h2>
+                <div className="space-y-2">
+                  {mySubscriptions.map((s) => (
+                    <div
+                      key={s.id}
+                      className="flex items-center justify-between rounded-xl bg-card p-4 shadow-sm"
+                    >
+                      <div>
+                        <button
+                          onClick={() => openDetail(s.center_id)}
+                          className="font-semibold hover:underline"
+                        >
+                          {s.center_name}
+                        </button>
+                        <p className="text-xs text-muted-foreground">
+                          {s.xp_per_month} XP/mes
+                          {s.expires_at && ` · Expira: ${new Date(s.expires_at).toLocaleDateString("es-ES")}`}
+                        </p>
+                      </div>
+                      <StatusBadge status={s.status} />
+                    </div>
+                  ))}
                 </div>
-                <StatusBadge status={m.status} />
               </div>
-            ))}
+            )}
+            {myMemberships.length > 0 && (
+              <div>
+                <h2 className="mb-2 text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                  Membresías (staff)
+                </h2>
+                <div className="space-y-2">
+                  {myMemberships.map((m) => (
+                    <div
+                      key={m.id}
+                      className="flex items-center justify-between rounded-xl bg-card p-4 shadow-sm"
+                    >
+                      <div>
+                        <button
+                          onClick={() => openDetail(m.center_id)}
+                          className="font-semibold hover:underline"
+                        >
+                          {m.center_name}
+                        </button>
+                        <p className="text-xs text-muted-foreground capitalize">
+                          {m.role}
+                        </p>
+                      </div>
+                      <StatusBadge status={m.status} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )
       )}
@@ -289,6 +391,12 @@ export default function CentersPage() {
             </div>
 
             <div className="space-y-5 p-6">
+              {actionMsg && (
+                <p className="rounded-md border border-border bg-secondary/30 px-4 py-2 text-sm">
+                  {actionMsg}
+                </p>
+              )}
+
               {selected.description && (
                 <p className="text-sm text-muted-foreground">
                   {selected.description}
@@ -322,71 +430,144 @@ export default function CentersPage() {
                 )}
               </div>
 
-              {/* members */}
-              <div>
-                <h3 className="mb-2 text-sm font-semibold">
-                  Miembros ({members.length})
-                </h3>
-                {members.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">
-                    Sin miembros aún.
-                  </p>
+              {/* subscription status */}
+              <div className="rounded-lg border p-4">
+                <h3 className="mb-3 text-sm font-semibold">Tu suscripción</h3>
+                {selectedSub ? (
+                  <div className="flex items-center gap-3">
+                    <StatusBadge status={selectedSub.status} />
+                    <span className="text-sm text-muted-foreground">
+                      {selectedSub.xp_per_month > 0
+                        ? `${selectedSub.xp_per_month.toLocaleString()} XP/mes`
+                        : "Gratis"}
+                      {selectedSub.status === "pending" && " · Pendiente de aceptación"}
+                      {selectedSub.status === "active" && selectedSub.expires_at &&
+                        ` · Expira: ${new Date(selectedSub.expires_at).toLocaleDateString("es-ES")}`}
+                    </span>
+                  </div>
                 ) : (
-                  <div className="space-y-1">
-                    {members.slice(0, 10).map((m) => (
-                      <div
-                        key={m.id}
-                        className="flex items-center justify-between rounded-md bg-secondary/50 px-3 py-1.5 text-sm"
-                      >
-                        <span>{m.user_name}</span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs capitalize text-muted-foreground">
-                            {m.role}
-                          </span>
-                          <StatusBadge status={m.status} />
-                        </div>
-                      </div>
-                    ))}
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div>
+                      <p className="text-sm text-muted-foreground">
+                        No tienes suscripción activa. Suscríbete para acceder a clases.
+                      </p>
+                      {selected.monthly_xp > 0 && (
+                        <p className="mt-1 flex items-center gap-1 text-sm font-medium text-yellow-600">
+                          <Zap className="h-4 w-4 text-yellow-500" />
+                          Coste: {selected.monthly_xp.toLocaleString()} XP/mes
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => subscribeToCenter(selected.id)}
+                      className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
+                    >
+                      <Zap className="h-4 w-4" />
+                      {selected.monthly_xp > 0
+                        ? `Solicitar · ${selected.monthly_xp.toLocaleString()} XP/mes`
+                        : "Solicitar suscripción"}
+                    </button>
                   </div>
                 )}
               </div>
 
-              {/* plans */}
-              {plans.length > 0 && (
+              {/* upcoming classes */}
+              {classes.length > 0 && (
                 <div>
-                  <h3 className="mb-2 text-sm font-semibold">
-                    Planes publicados
+                  <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold">
+                    <Calendar className="h-4 w-4 text-primary" />
+                    Clases programadas
                   </h3>
-                  <div className="space-y-1">
-                    {plans.map((p) => (
-                      <div
-                        key={p.id}
-                        className="flex items-center justify-between rounded-md bg-secondary/50 px-3 py-1.5 text-sm"
-                      >
-                        <span>{p.plan_name}</span>
-                        <span className="text-xs text-muted-foreground">
-                          por {p.coach_name}
-                        </span>
-                      </div>
-                    ))}
+                  <div className="space-y-2">
+                    {classes.map((cls) => {
+                      const isFull = cls.max_capacity != null && cls.booking_count >= cls.max_capacity;
+                      const canBook = selectedSub?.status === "active" && !isFull;
+                      return (
+                        <div
+                          key={cls.id}
+                          className="flex items-center justify-between rounded-lg border bg-secondary/30 px-4 py-3"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium">{cls.name}</p>
+                            <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                              <span className="flex items-center gap-1">
+                                <Calendar className="h-3 w-3" />
+                                {fmtDateTime(cls.scheduled_at)}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Users className="h-3 w-3" />
+                                {cls.booking_count}{cls.max_capacity ? `/${cls.max_capacity}` : ""}
+                              </span>
+                              <span>por {cls.coach_name}</span>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => bookClass(selected.id, cls.id)}
+                            disabled={!canBook}
+                            className="ml-3 shrink-0 rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground hover:bg-accent/90 disabled:opacity-40"
+                          >
+                            {isFull ? "Llena" : !selectedSub || selectedSub.status !== "active" ? "Sin suscripción" : "Reservar"}
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
 
-              {/* join */}
-              <div className="flex gap-3">
-                <button
-                  onClick={() => joinCenter(selected.id)}
-                  className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
-                >
-                  <LogIn className="h-4 w-4" />
-                  Solicitar unirse
-                </button>
+              {/* pending subscriptions — only visible to center owner/admin */}
+              {user && (selected.owner_id === user.id || user.role === "admin") && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                  <h3 className="mb-3 text-sm font-semibold text-amber-800">
+                    Solicitudes de suscripción pendientes
+                    {pendingSubs.length > 0 && (
+                      <span className="ml-2 rounded-full bg-amber-200 px-2 py-0.5 text-xs">
+                        {pendingSubs.length}
+                      </span>
+                    )}
+                  </h3>
+                  {pendingSubs.length === 0 ? (
+                    <p className="text-sm text-amber-700">No hay solicitudes pendientes.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {pendingSubs.map((s) => (
+                        <div
+                          key={s.id}
+                          className="flex items-center justify-between rounded-md bg-white px-3 py-2 shadow-sm"
+                        >
+                          <div>
+                            <p className="text-sm font-medium">{s.athlete_name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {s.xp_per_month > 0 ? `${s.xp_per_month} XP/mes` : "Gratis"}
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleSubDecision(selected.id, s.id, true)}
+                              className="rounded-md bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700"
+                            >
+                              Aceptar
+                            </button>
+                            <button
+                              onClick={() => handleSubDecision(selected.id, s.id, false)}
+                              className="rounded-md border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50"
+                            >
+                              Rechazar
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* close */}
+              <div className="flex justify-end">
                 <button
                   onClick={() => setSelected(null)}
                   className="inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm font-medium hover:bg-secondary"
                 >
-                  <LogOut className="h-4 w-4" />
                   Cerrar
                 </button>
               </div>

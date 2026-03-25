@@ -1,8 +1,9 @@
 import { useAuth } from "@/hooks/useAuth";
 import { api } from "@/services/api";
-import type { Product } from "@/types/api";
+import type { Product, ProductRedemptionResult } from "@/types/api";
 import {
     ExternalLink,
+    Loader2,
     Package,
     Percent,
     ShoppingBag,
@@ -17,6 +18,8 @@ export default function ShopPage() {
   const [tab, setTab] = useState<Tab>("product");
   const [items, setItems] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [redeeming, setRedeeming] = useState<number | null>(null);
+  const [actionMsg, setActionMsg] = useState("");
 
   const fetchItems = useCallback(async () => {
     setLoading(true);
@@ -31,6 +34,20 @@ export default function ShopPage() {
   }, []);
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
+
+  const handleRedeem = async (productId: number) => {
+    setRedeeming(productId);
+    setActionMsg("");
+    try {
+      const res = await api.post<ProductRedemptionResult>(`/api/companies/products/${productId}/redeem`);
+      setActionMsg(`✅ ${res.message}`);
+      if (res.external_url) window.open(res.external_url, "_blank");
+    } catch (err) {
+      setActionMsg(`❌ ${err instanceof Error ? err.message : "Error al canjear"}`);
+    } finally {
+      setRedeeming(null);
+    }
+  };
 
   const userXp = user?.total_xp ?? 0;
   const filtered = items.filter((p) => p.item_type === tab);
@@ -54,6 +71,12 @@ export default function ShopPage() {
           </div>
         </div>
       </div>
+
+      {actionMsg && (
+        <p className="rounded-md border border-border bg-card px-4 py-2 text-sm text-muted-foreground">
+          {actionMsg}
+        </p>
+      )}
 
       {/* Tabs */}
       <div className="flex items-center gap-2">
@@ -135,38 +158,50 @@ export default function ShopPage() {
                     )}
                   </div>
 
-                  {/* XP cost + action */}
-                  <div className="flex items-center justify-between">
-                    <span
-                      className={`inline-flex items-center gap-1 text-sm font-bold ${
-                        canAfford ? "text-yellow-600" : "text-muted-foreground"
-                      }`}
-                    >
-                      <Zap className="h-3.5 w-3.5" />
-                      {p.xp_cost != null ? `${p.xp_cost.toLocaleString()} XP` : "Gratis"}
-                    </span>
-                    {p.external_url && (
-                      <a
-                        href={p.external_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                          canAfford
-                            ? "bg-primary/10 text-primary hover:bg-primary/20"
-                            : "bg-secondary text-muted-foreground cursor-not-allowed pointer-events-none"
-                        }`}
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                        {p.item_type === "discount" ? "Ver descuento" : "Ver producto"}
-                      </a>
-                    )}
-                  </div>
+                  {/* XP cost */}
+                  <span
+                    className={`inline-flex items-center gap-1 text-sm font-bold ${
+                      canAfford ? "text-yellow-600" : "text-muted-foreground"
+                    }`}
+                  >
+                    <Zap className="h-3.5 w-3.5" />
+                    {p.xp_cost != null ? `${p.xp_cost.toLocaleString()} XP` : "Gratis"}
+                  </span>
 
                   {!canAfford && p.xp_cost != null && (
                     <p className="text-[11px] text-muted-foreground">
                       Te faltan {(p.xp_cost - userXp).toLocaleString()} XP
                     </p>
                   )}
+
+                  {/* Actions */}
+                  <div className="flex gap-2">
+                    {p.xp_cost != null && (
+                      <button
+                        onClick={() => handleRedeem(p.id)}
+                        disabled={!canAfford || redeeming === p.id}
+                        className="flex flex-1 items-center justify-center gap-1 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90 disabled:opacity-50"
+                      >
+                        {redeeming === p.id ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <Zap className="h-3 w-3" />
+                        )}
+                        Canjear
+                      </button>
+                    )}
+                    {p.external_url && (
+                      <a
+                        href={p.external_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-secondary"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        Ver
+                      </a>
+                    )}
+                  </div>
                 </div>
               </div>
             );

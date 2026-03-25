@@ -11,6 +11,7 @@ import {
     UserCheck,
     Users,
     X,
+    Zap,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -53,10 +54,9 @@ export default function CoachesPage() {
     setLoadingPlans(true);
     try {
       const plans = await api.get<PlanListItem[]>(
-        `/api/plans?search=&mine_only=false`,
+        `/api/plans/coach/${coach.id}/available`,
       );
-      // Filter to only this coach's plans
-      setCoachPlans(plans.filter((p) => p.created_by === coach.id));
+      setCoachPlans(plans);
     } catch {
       setCoachPlans([]);
     } finally {
@@ -76,8 +76,8 @@ export default function CoachesPage() {
           c.id === coachId
             ? {
                 ...c,
-                relationship_status: "pending",
-                relationship_initiated_by: "athlete",
+                subscription_status: "pending",
+                subscription_initiated_by: "athlete",
               }
             : c,
         ),
@@ -87,8 +87,8 @@ export default function CoachesPage() {
           prev
             ? {
                 ...prev,
-                relationship_status: "pending",
-                relationship_initiated_by: "athlete",
+                subscription_status: "pending",
+                subscription_initiated_by: "athlete",
               }
             : prev,
         );
@@ -103,7 +103,7 @@ export default function CoachesPage() {
   };
 
   const getStatusBadge = (coach: CoachProfile) => {
-    if (coach.relationship_status === "active") {
+    if (coach.subscription_status === "active") {
       return (
         <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-1 text-xs font-medium text-green-700">
           <UserCheck className="h-3 w-3" />
@@ -111,8 +111,8 @@ export default function CoachesPage() {
         </span>
       );
     }
-    if (coach.relationship_status === "pending") {
-      if (coach.relationship_initiated_by === "athlete") {
+    if (coach.subscription_status === "pending") {
+      if (coach.subscription_initiated_by === "athlete") {
         return (
           <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700">
             <Clock className="h-3 w-3" />
@@ -209,7 +209,7 @@ export default function CoachesPage() {
               </div>
 
               {/* Stats */}
-              <div className="mt-4 flex gap-4 text-sm">
+              <div className="mt-4 flex flex-wrap gap-4 text-sm">
                 <div className="flex items-center gap-1.5 text-muted-foreground">
                   <Users className="h-4 w-4" />
                   <span>
@@ -224,12 +224,20 @@ export default function CoachesPage() {
                     {coach.plan_count === 1 ? "plan" : "planes"}
                   </span>
                 </div>
+                <div className="flex items-center gap-1.5 font-medium">
+                  <Zap className="h-4 w-4 text-yellow-500" />
+                  <span className="text-yellow-600">
+                    {coach.xp_per_month > 0
+                      ? `${coach.xp_per_month.toLocaleString()} XP/mes`
+                      : "Gratis"}
+                  </span>
+                </div>
               </div>
 
               {/* Status / action */}
               <div className="mt-4">
                 {getStatusBadge(coach) ??
-                  (coach.relationship_status == null && (
+                  (coach.subscription_status == null && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -290,22 +298,31 @@ export default function CoachesPage() {
                 </p>
                 <p className="text-xs text-muted-foreground">Planes</p>
               </div>
+              <div className="text-center">
+                <p className="flex items-center justify-center gap-1 text-2xl font-bold text-yellow-600">
+                  <Zap className="h-5 w-5" />
+                  {selectedCoach.xp_per_month > 0
+                    ? selectedCoach.xp_per_month.toLocaleString()
+                    : "0"}
+                </p>
+                <p className="text-xs text-muted-foreground">XP/mes</p>
+              </div>
             </div>
 
             {/* Status / request */}
             <div className="mt-5">
-              {selectedCoach.relationship_status === "active" ? (
+              {selectedCoach.subscription_status === "active" ? (
                 <div className="flex items-center gap-2 rounded-lg bg-green-50 p-3 text-sm text-green-700">
                   <Check className="h-5 w-5" />
                   <span className="font-medium">
                     Ya tienes una relación activa con este coach
                   </span>
                 </div>
-              ) : selectedCoach.relationship_status === "pending" ? (
+              ) : selectedCoach.subscription_status === "pending" ? (
                 <div className="flex items-center gap-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-700">
                   <Clock className="h-5 w-5" />
                   <span className="font-medium">
-                    {selectedCoach.relationship_initiated_by === "athlete"
+                    {selectedCoach.subscription_initiated_by === "athlete"
                       ? "Tu solicitud está pendiente de aceptación"
                       : "Este coach te ha enviado una invitación — revisa tu Dashboard"}
                   </span>
