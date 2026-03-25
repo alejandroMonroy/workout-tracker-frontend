@@ -23,9 +23,11 @@ import {
     Sparkles,
     Trophy,
     User as UserIcon,
+    Users,
     Zap,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useFriendIds } from "@/hooks/useFriendIds";
 
 /* ─── Division visual config ─── */
 
@@ -266,11 +268,11 @@ export default function DivisionsPage() {
       {/* Tab content */}
       {tab === "standings" && (
         <StandingsTab
-          standings={current.standings}
+          myStandings={current.standings}
           division={current.division}
           promoteCount={current.promote_count}
           demoteCount={current.demote_count}
-          groupNumber={current.group_number}
+          myGroupNumber={current.group_number}
           totalGroups={current.total_groups}
         />
       )}
@@ -281,21 +283,64 @@ export default function DivisionsPage() {
 
 /* ─── Standings ─── */
 function StandingsTab({
-  standings,
+  myStandings,
   division,
   promoteCount,
   demoteCount,
-  groupNumber,
+  myGroupNumber,
   totalGroups,
 }: {
-  standings: LeagueStanding[];
+  myStandings: LeagueStanding[];
   division: Division;
   promoteCount: number;
   demoteCount: number;
-  groupNumber: number;
+  myGroupNumber: number;
   totalGroups: number;
 }) {
-  if (standings.length === 0) {
+  const friendIds = useFriendIds();
+  const [selectedGroup, setSelectedGroup] = useState(myGroupNumber);
+  const [groupStandings, setGroupStandings] = useState<LeagueStanding[] | null>(null);
+  const [loadingGroup, setLoadingGroup] = useState(false);
+
+  const standings = selectedGroup === myGroupNumber ? myStandings : (groupStandings ?? []);
+
+  const handleSelectGroup = async (gn: number) => {
+    setSelectedGroup(gn);
+    if (gn === myGroupNumber) return;
+    setLoadingGroup(true);
+    try {
+      const data = await api.get<LeagueStanding[]>(`/api/divisions/groups/${gn}`);
+      setGroupStandings(data);
+    } catch { /* empty */ }
+    finally { setLoadingGroup(false); }
+  };
+
+  const meta = DIVISION_META[division];
+
+  // Group selector (only shown when there are multiple groups)
+  const groupSelector = totalGroups > 1 && (
+    <div className="flex items-center gap-2 px-5 py-3 border-b border-border bg-secondary/30 overflow-x-auto">
+      <span className="text-xs font-medium text-muted-foreground shrink-0">Grupo:</span>
+      <div className="flex gap-1">
+        {Array.from({ length: totalGroups }, (_, i) => i + 1).map((gn) => (
+          <button
+            key={gn}
+            onClick={() => handleSelectGroup(gn)}
+            className={cn(
+              "shrink-0 rounded-md px-2.5 py-1 text-xs font-semibold transition-colors",
+              selectedGroup === gn
+                ? "bg-primary text-white shadow-sm"
+                : "bg-secondary text-muted-foreground hover:bg-border hover:text-foreground"
+            )}
+          >
+            {gn === myGroupNumber ? `${gn} (tú)` : gn}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
+  if (myStandings.length === 0) {
     return (
       <div className="rounded-lg border border-border bg-card p-8 text-center">
         <Sparkles className="mx-auto h-10 w-10 text-muted-foreground/40" />
@@ -306,7 +351,6 @@ function StandingsTab({
     );
   }
 
-  const meta = DIVISION_META[division];
   const groupSize = standings.length;
 
   return (
@@ -314,12 +358,28 @@ function StandingsTab({
       <div className="border-b border-border px-5 py-4">
         <h2 className="flex items-center gap-2 font-semibold">
           <Medal className="h-4 w-4 text-yellow-500" />
-          Clasificación del Grupo
+          Clasificación
         </h2>
         <p className="text-xs text-muted-foreground mt-0.5">
-          {standings.length} participantes · División {meta.label} · Grupo {groupNumber} de {totalGroups}
+          División {meta.label} · Grupo {selectedGroup} de {totalGroups}
+          {selectedGroup !== myGroupNumber && (
+            <button
+              onClick={() => handleSelectGroup(myGroupNumber)}
+              className="ml-2 text-primary hover:underline"
+            >
+              Volver a mi grupo
+            </button>
+          )}
         </p>
       </div>
+
+      {groupSelector}
+
+      {loadingGroup ? (
+        <div className="flex items-center justify-center py-10">
+          <div className="h-6 w-6 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+        </div>
+      ) : (
       <div className="divide-y divide-border">
         {standings.map((entry) => {
           const isPromoteZone = entry.promoted;
@@ -416,6 +476,9 @@ function StandingsTab({
                         (tú)
                       </span>
                     )}
+                    {!entry.is_current_user && friendIds.has(entry.user_id) && (
+                      <Users className="inline ml-1.5 h-3.5 w-3.5 text-green-500 shrink-0" />
+                    )}
                   </p>
                 </div>
 
@@ -434,6 +497,7 @@ function StandingsTab({
           );
         })}
       </div>
+      )}
     </div>
   );
 }

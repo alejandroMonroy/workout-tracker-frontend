@@ -33,10 +33,12 @@ import {
   TrendingUp,
   Trophy,
   User as UserIcon,
+  Users,
   X,
   Zap,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useFriendIds } from "@/hooks/useFriendIds";
 import { useNavigate } from "react-router-dom";
 import {
   CartesianGrid,
@@ -910,6 +912,8 @@ function XPHistory({ history }: { history: XPTransaction[] }) {
 }
 
 function XPLeaderboard({ leaderboard, currentUserId }: { leaderboard: LeaderboardEntry[]; currentUserId?: number }) {
+  const friendIds = useFriendIds();
+
   if (leaderboard.length === 0) {
     return (
       <div className="rounded-lg border border-border bg-card p-8 text-center">
@@ -955,6 +959,9 @@ function XPLeaderboard({ leaderboard, currentUserId }: { leaderboard: Leaderboar
                 <p className={cn("truncate text-sm font-medium", isMe && "text-primary")}>
                   {entry.name}
                   {isMe && <span className="ml-1.5 text-xs text-muted-foreground">(tú)</span>}
+                  {!isMe && friendIds.has(entry.user_id) && (
+                    <Users className="inline ml-1.5 h-3.5 w-3.5 text-green-500 shrink-0" />
+                  )}
                 </p>
                 <p className="text-xs text-muted-foreground">Nivel {entry.level}</p>
               </div>

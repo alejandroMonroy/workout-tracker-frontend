@@ -3,6 +3,8 @@ import { api } from "@/services/api";
 import type { AthleteProfile, AthletePublic, FriendshipResponse } from "@/types/api";
 import {
     Check,
+    ChevronDown,
+    ChevronUp,
     Clock,
     Dumbbell,
     Loader2,
@@ -36,9 +38,9 @@ const RECORD_UNITS: Record<string, string> = {
 
 /* ── sub-components ── */
 
-function AthleteAvatar({ name, size = "md" }: { name: string; size?: "sm" | "md" | "lg" }) {
+function AthleteAvatar({ name, size = "md" }: { name: string; size?: "sm" | "md" }) {
     const initials = name.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase();
-    const cls = size === "lg" ? "h-16 w-16 text-xl" : size === "sm" ? "h-8 w-8 text-xs" : "h-11 w-11 text-sm";
+    const cls = size === "sm" ? "h-8 w-8 text-xs" : "h-11 w-11 text-sm";
     return (
         <div className={`${cls} flex items-center justify-center rounded-full bg-primary/10 text-primary font-bold shrink-0`}>
             {initials}
@@ -73,7 +75,7 @@ function FriendButton({ athlete, onSend, onCancel, onAccept, onUnfriend, loading
     if (!friendship_status) {
         return (
             <button
-                onClick={() => onSend(id)}
+                onClick={(e) => { e.stopPropagation(); onSend(id); }}
                 className="flex items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20 transition-colors"
             >
                 <UserPlus className="h-3.5 w-3.5" /> Añadir
@@ -83,7 +85,7 @@ function FriendButton({ athlete, onSend, onCancel, onAccept, onUnfriend, loading
     if (friendship_status === "pending_sent") {
         return (
             <button
-                onClick={() => onCancel(friendship_id!)}
+                onClick={(e) => { e.stopPropagation(); onCancel(friendship_id!); }}
                 className="flex items-center gap-1.5 rounded-lg bg-secondary px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
             >
                 <X className="h-3.5 w-3.5" /> Cancelar
@@ -92,7 +94,7 @@ function FriendButton({ athlete, onSend, onCancel, onAccept, onUnfriend, loading
     }
     if (friendship_status === "pending_received") {
         return (
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                 <button
                     onClick={() => onAccept(friendship_id!)}
                     className="flex items-center gap-1 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent/90 transition-colors"
@@ -108,10 +110,10 @@ function FriendButton({ athlete, onSend, onCancel, onAccept, onUnfriend, loading
             </div>
         );
     }
-    // accepted
+    // accepted — unfriend button (shown in friends tab, not here)
     return (
         <button
-            onClick={() => onUnfriend(id)}
+            onClick={(e) => { e.stopPropagation(); onUnfriend(id); }}
             className="flex items-center gap-1.5 rounded-lg bg-green-50 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-red-50 hover:text-red-600 transition-colors group"
         >
             <UserCheck className="h-3.5 w-3.5 group-hover:hidden" />
@@ -122,103 +124,86 @@ function FriendButton({ athlete, onSend, onCancel, onAccept, onUnfriend, loading
     );
 }
 
-/* ── athlete profile panel ── */
+/* ── expandable friend profile (inline) ── */
 
-function AthleteProfilePanel({ athlete, onClose }: { athlete: AthleteProfile; onClose: () => void }) {
-    return (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={onClose}>
-            <div className="absolute inset-0 bg-black/40" />
-            <div
-                className="relative z-10 w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl bg-background shadow-2xl max-h-[90vh] overflow-y-auto"
-                onClick={(e) => e.stopPropagation()}
-            >
-                {/* Header */}
-                <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-border">
-                    <div className="flex items-center gap-3">
-                        <AthleteAvatar name={athlete.name} size="lg" />
-                        <div>
-                            <h2 className="text-lg font-bold">{athlete.name}</h2>
-                            <div className="flex items-center gap-2 mt-0.5">
-                                <span className="flex items-center gap-1 text-sm text-muted-foreground">
-                                    <Zap className="h-3.5 w-3.5 text-yellow-500" />
-                                    Nv. {athlete.level} · {athlete.total_xp.toLocaleString()} XP
-                                </span>
-                                <DivisionBadge division={athlete.current_division} />
-                            </div>
-                        </div>
-                    </div>
-                    <button onClick={onClose} className="rounded-full p-2 hover:bg-secondary transition-colors">
-                        <X className="h-4 w-4" />
-                    </button>
-                </div>
-
-                {/* Stats */}
-                <div className="grid grid-cols-2 gap-3 p-5">
-                    <div className="rounded-xl bg-card border border-border p-4 text-center">
-                        <p className="text-2xl font-bold">{athlete.total_sessions}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">Sesiones totales</p>
-                    </div>
-                    <div className="rounded-xl bg-card border border-border p-4 text-center">
-                        <p className="text-2xl font-bold">{athlete.sessions_30d}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">Últimos 30 días</p>
-                    </div>
-                </div>
-
-                {/* Records */}
-                {athlete.records.length > 0 && (
-                    <div className="px-5 pb-4">
-                        <h3 className="flex items-center gap-1.5 text-sm font-semibold mb-3">
-                            <Trophy className="h-4 w-4 text-yellow-500" /> Records
-                        </h3>
-                        <div className="space-y-2">
-                            {athlete.records.map((r) => (
-                                <div key={r.id} className="flex items-center justify-between rounded-lg bg-card border border-border px-3 py-2">
-                                    <div>
-                                        <p className="text-sm font-medium">{r.exercise_name}</p>
-                                        <p className="text-xs text-muted-foreground">{RECORD_LABELS[r.record_type] ?? r.record_type}</p>
-                                    </div>
-                                    <span className="text-sm font-bold text-yellow-600">
-                                        {r.value}{RECORD_UNITS[r.record_type] ?? ""}
-                                    </span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                {/* Recent sessions */}
-                {athlete.recent_sessions.length > 0 && (
-                    <div className="px-5 pb-5">
-                        <h3 className="flex items-center gap-1.5 text-sm font-semibold mb-3">
-                            <Dumbbell className="h-4 w-4 text-primary" /> Últimas sesiones
-                        </h3>
-                        <div className="space-y-2">
-                            {athlete.recent_sessions.map((s) => (
-                                <div key={s.id} className="flex items-center justify-between rounded-lg bg-card border border-border px-3 py-2">
-                                    <div>
-                                        <p className="text-sm font-medium">{formatDate(s.started_at)}</p>
-                                        <p className="text-xs text-muted-foreground">
-                                            {s.exercise_count} ejercicios · {s.set_count} series
-                                        </p>
-                                    </div>
-                                    {s.total_duration_sec && (
-                                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                                            <Clock className="h-3 w-3" />
-                                            {formatDuration(s.total_duration_sec)}
-                                        </span>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                {athlete.records.length === 0 && athlete.recent_sessions.length === 0 && (
-                    <p className="px-5 pb-5 text-center text-sm text-muted-foreground">
-                        Este atleta aún no tiene datos registrados.
-                    </p>
-                )}
+function FriendProfileDetail({ profile, loading }: { profile: AthleteProfile | null; loading: boolean }) {
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center py-6">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
+        );
+    }
+    if (!profile) return null;
+
+    return (
+        <div className="mt-4 pt-4 border-t border-border space-y-4">
+            {/* Stats */}
+            <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-lg bg-secondary/50 p-3 text-center">
+                    <p className="text-xl font-bold">{profile.total_sessions}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Sesiones totales</p>
+                </div>
+                <div className="rounded-lg bg-secondary/50 p-3 text-center">
+                    <p className="text-xl font-bold">{profile.sessions_30d}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Últimos 30 días</p>
+                </div>
+            </div>
+
+            {/* Records */}
+            {profile.records.length > 0 && (
+                <div>
+                    <h4 className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                        <Trophy className="h-3.5 w-3.5 text-yellow-500" /> Records
+                    </h4>
+                    <div className="space-y-1.5">
+                        {profile.records.map((r) => (
+                            <div key={r.id} className="flex items-center justify-between rounded-lg bg-secondary/50 px-3 py-2">
+                                <div>
+                                    <p className="text-sm font-medium">{r.exercise_name}</p>
+                                    <p className="text-xs text-muted-foreground">{RECORD_LABELS[r.record_type] ?? r.record_type}</p>
+                                </div>
+                                <span className="text-sm font-bold text-yellow-600">
+                                    {r.value}{RECORD_UNITS[r.record_type] ?? ""}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Recent sessions */}
+            {profile.recent_sessions.length > 0 && (
+                <div>
+                    <h4 className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                        <Dumbbell className="h-3.5 w-3.5 text-primary" /> Últimas sesiones
+                    </h4>
+                    <div className="space-y-1.5">
+                        {profile.recent_sessions.map((s) => (
+                            <div key={s.id} className="flex items-center justify-between rounded-lg bg-secondary/50 px-3 py-2">
+                                <div>
+                                    <p className="text-sm font-medium">{formatDate(s.started_at)}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                        {s.exercise_count} ejercicios · {s.set_count} series
+                                    </p>
+                                </div>
+                                {s.total_duration_sec && (
+                                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                        <Clock className="h-3 w-3" />
+                                        {formatDuration(s.total_duration_sec)}
+                                    </span>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {profile.records.length === 0 && profile.recent_sessions.length === 0 && (
+                <p className="text-center text-sm text-muted-foreground py-2">
+                    Este atleta aún no tiene datos registrados.
+                </p>
+            )}
         </div>
     );
 }
@@ -235,8 +220,10 @@ export default function AthletesPage() {
     const [search, setSearch] = useState("");
     const [loadingSearch, setLoadingSearch] = useState(false);
     const [actionLoading, setActionLoading] = useState<number | null>(null);
-    const [selectedProfile, setSelectedProfile] = useState<AthleteProfile | null>(null);
-    const [loadingProfile, setLoadingProfile] = useState(false);
+    // Expandable cards state
+    const [expandedId, setExpandedId] = useState<number | null>(null);
+    const [profileCache, setProfileCache] = useState<Record<number, AthleteProfile>>({});
+    const [loadingProfileId, setLoadingProfileId] = useState<number | null>(null);
     const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const loadFriends = useCallback(async () => {
@@ -270,63 +257,55 @@ export default function AthletesPage() {
         searchTimer.current = setTimeout(() => searchAthletes(value), 350);
     };
 
-    // Update a single athlete's friendship state in all lists
-    const updateAthleteState = (updated: AthletePublic) => {
-        setAthletes((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
-    };
-
     const handleSendRequest = async (userId: number) => {
         setActionLoading(userId);
         try {
-            const fr = await api.post<FriendshipResponse>(`/api/friends/request/${userId}`);
-            updateAthleteState(fr.other_user);
-        } finally {
-            setActionLoading(null);
-        }
+            await api.post(`/api/friends/request/${userId}`);
+            await searchAthletes(search);
+        } catch { /* empty */ }
+        finally { setActionLoading(null); }
     };
 
     const handleCancel = async (friendshipId: number) => {
         setActionLoading(friendshipId);
         try {
             await api.delete(`/api/friends/requests/${friendshipId}`);
-            // Refresh full state
             await Promise.all([loadFriends(), searchAthletes(search)]);
-        } finally {
-            setActionLoading(null);
-        }
+        } catch { /* empty */ }
+        finally { setActionLoading(null); }
     };
 
     const handleAccept = async (friendshipId: number) => {
         setActionLoading(friendshipId);
         try {
-            const fr = await api.post<FriendshipResponse>(`/api/friends/requests/${friendshipId}/accept`);
-            setRequests((prev) => prev.filter((r) => r.id !== friendshipId));
-            setFriends((prev) => [...prev, fr]);
-            updateAthleteState(fr.other_user);
-        } finally {
-            setActionLoading(null);
-        }
+            await api.post(`/api/friends/requests/${friendshipId}/accept`);
+            await Promise.all([loadFriends(), searchAthletes(search)]);
+        } catch { /* empty */ }
+        finally { setActionLoading(null); }
     };
 
     const handleUnfriend = async (userId: number) => {
         setActionLoading(userId);
         try {
             await api.delete(`/api/friends/${userId}`);
-            setFriends((prev) => prev.filter((f) => f.other_user.id !== userId));
-            await searchAthletes(search);
-        } finally {
-            setActionLoading(null);
-        }
+            if (expandedId === userId) setExpandedId(null);
+            await Promise.all([loadFriends(), searchAthletes(search)]);
+        } finally { setActionLoading(null); }
     };
 
-    const handleViewProfile = async (athlete: AthletePublic) => {
-        if (athlete.friendship_status !== "accepted") return;
-        setLoadingProfile(true);
+    const handleToggleExpand = async (userId: number) => {
+        if (expandedId === userId) {
+            setExpandedId(null);
+            return;
+        }
+        setExpandedId(userId);
+        if (profileCache[userId]) return;
+        setLoadingProfileId(userId);
         try {
-            const profile = await api.get<AthleteProfile>(`/api/athletes/${athlete.id}`);
-            setSelectedProfile(profile);
+            const profile = await api.get<AthleteProfile>(`/api/athletes/${userId}`);
+            setProfileCache((prev) => ({ ...prev, [userId]: profile }));
         } finally {
-            setLoadingProfile(false);
+            setLoadingProfileId(null);
         }
     };
 
@@ -366,7 +345,7 @@ export default function AthletesPage() {
                 ))}
             </div>
 
-            {/* Directory tab */}
+            {/* ── Directory tab ── */}
             {tab === "directory" && (
                 <div className="space-y-4">
                     <div className="relative">
@@ -390,38 +369,24 @@ export default function AthletesPage() {
                             </p>
                         )}
                         {athletes.map((athlete) => (
-                            <div
-                                key={athlete.id}
-                                className="flex items-center gap-3 rounded-xl bg-card border border-border p-4"
-                            >
-                                <button
-                                    onClick={() => handleViewProfile(athlete)}
-                                    disabled={athlete.friendship_status !== "accepted" || loadingProfile}
-                                    className={`flex items-center gap-3 flex-1 min-w-0 text-left ${
-                                        athlete.friendship_status === "accepted" ? "cursor-pointer hover:opacity-80" : "cursor-default"
-                                    }`}
-                                >
-                                    <AthleteAvatar name={athlete.name} />
-                                    <div className="min-w-0 flex-1">
-                                        <div className="flex items-center gap-2 flex-wrap">
-                                            <p className="text-sm font-semibold truncate">{athlete.name}</p>
-                                            <DivisionBadge division={athlete.current_division} />
-                                        </div>
-                                        <p className="text-xs text-muted-foreground mt-0.5">
-                                            Nv. {athlete.level} · {athlete.total_xp.toLocaleString()} XP
-                                            {athlete.friendship_status === "accepted" && (
-                                                <span className="ml-2 text-primary">· Ver perfil →</span>
-                                            )}
-                                        </p>
+                            <div key={athlete.id} className="flex items-center gap-3 rounded-xl bg-card border border-border px-4 py-3">
+                                <AthleteAvatar name={athlete.name} />
+                                <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <p className="text-sm font-semibold truncate">{athlete.name}</p>
+                                        <DivisionBadge division={athlete.current_division} />
                                     </div>
-                                </button>
+                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                        Nv. {athlete.level} · {athlete.total_xp.toLocaleString()} XP
+                                    </p>
+                                </div>
                                 <FriendButton
                                     athlete={athlete}
                                     onSend={handleSendRequest}
                                     onCancel={handleCancel}
                                     onAccept={handleAccept}
                                     onUnfriend={handleUnfriend}
-                                    loading={actionLoading === athlete.id || actionLoading === athlete.friendship_id}
+                                    loading={actionLoading === athlete.id || (athlete.friendship_id !== null && actionLoading === athlete.friendship_id)}
                                 />
                             </div>
                         ))}
@@ -429,7 +394,7 @@ export default function AthletesPage() {
                 </div>
             )}
 
-            {/* Friends tab */}
+            {/* ── Friends tab ── */}
             {tab === "friends" && (
                 <div className="space-y-2">
                     {friends.length === 0 && (
@@ -438,41 +403,63 @@ export default function AthletesPage() {
                             <p className="text-sm text-muted-foreground">Aún no tienes amigos.<br />Busca atletas en el Directorio.</p>
                         </div>
                     )}
-                    {friends.map((f) => (
-                        <div key={f.id} className="flex items-center gap-3 rounded-xl bg-card border border-border p-4">
-                            <button
-                                onClick={() => handleViewProfile(f.other_user)}
-                                disabled={loadingProfile}
-                                className="flex items-center gap-3 flex-1 min-w-0 text-left hover:opacity-80"
-                            >
-                                <AthleteAvatar name={f.other_user.name} />
-                                <div className="min-w-0">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                        <p className="text-sm font-semibold truncate">{f.other_user.name}</p>
-                                        <DivisionBadge division={f.other_user.current_division} />
+                    {friends.map((f) => {
+                        const uid = f.other_user.id;
+                        const isExpanded = expandedId === uid;
+                        const isLoadingThis = loadingProfileId === uid;
+                        return (
+                            <div key={f.id} className="rounded-xl bg-card border border-border overflow-hidden">
+                                {/* Card header — clickable to expand */}
+                                <button
+                                    onClick={() => handleToggleExpand(uid)}
+                                    className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-secondary/40 transition-colors"
+                                >
+                                    <AthleteAvatar name={f.other_user.name} />
+                                    <div className="min-w-0 flex-1">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <p className="text-sm font-semibold truncate">{f.other_user.name}</p>
+                                            <DivisionBadge division={f.other_user.current_division} />
+                                        </div>
+                                        <p className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
+                                            <Zap className="h-3 w-3 text-yellow-500" />
+                                            Nv. {f.other_user.level} · {f.other_user.total_xp.toLocaleString()} XP
+                                        </p>
                                     </div>
-                                    <p className="text-xs text-muted-foreground">
-                                        Nv. {f.other_user.level} · {f.other_user.total_xp.toLocaleString()} XP · <span className="text-primary">Ver perfil →</span>
-                                    </p>
-                                </div>
-                            </button>
-                            <button
-                                onClick={() => handleUnfriend(f.other_user.id)}
-                                disabled={actionLoading === f.other_user.id}
-                                className="rounded-lg border border-border p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
-                                title="Eliminar amigo"
-                            >
-                                {actionLoading === f.other_user.id
-                                    ? <Loader2 className="h-4 w-4 animate-spin" />
-                                    : <UserX className="h-4 w-4" />
-                                }
-                            </button>
-                        </div>
-                    ))}
+                                    <div className="flex items-center gap-2 shrink-0">
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); handleUnfriend(uid); }}
+                                            disabled={actionLoading === uid}
+                                            className="rounded-lg border border-border p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+                                            title="Eliminar amigo"
+                                        >
+                                            {actionLoading === uid
+                                                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                : <UserX className="h-3.5 w-3.5" />
+                                            }
+                                        </button>
+                                        {isExpanded
+                                            ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                                            : <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                        }
+                                    </div>
+                                </button>
+
+                                {/* Expanded profile */}
+                                {isExpanded && (
+                                    <div className="px-4 pb-4">
+                                        <FriendProfileDetail
+                                            profile={profileCache[uid] ?? null}
+                                            loading={isLoadingThis}
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
                 </div>
             )}
 
-            {/* Requests tab */}
+            {/* ── Requests tab ── */}
             {tab === "requests" && (
                 <div className="space-y-2">
                     {requests.length === 0 && (
@@ -482,7 +469,7 @@ export default function AthletesPage() {
                         </div>
                     )}
                     {requests.map((r) => (
-                        <div key={r.id} className="flex items-center gap-3 rounded-xl bg-card border border-border p-4">
+                        <div key={r.id} className="flex items-center gap-3 rounded-xl bg-card border border-border px-4 py-3">
                             <AthleteAvatar name={r.other_user.name} />
                             <div className="min-w-0 flex-1">
                                 <div className="flex items-center gap-2 flex-wrap">
@@ -516,14 +503,6 @@ export default function AthletesPage() {
                         </div>
                     ))}
                 </div>
-            )}
-
-            {/* Profile modal */}
-            {selectedProfile && (
-                <AthleteProfilePanel
-                    athlete={selectedProfile}
-                    onClose={() => setSelectedProfile(null)}
-                />
             )}
         </div>
     );
