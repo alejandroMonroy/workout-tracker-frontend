@@ -1,22 +1,12 @@
 import AppLayout from "@/components/AppLayout";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { AuthProvider } from "@/hooks/useAuth";
-import CentersPage from "@/pages/CentersPage";
-import CoachPage from "@/pages/CoachPage";
-import CoachesPage from "@/pages/CoachesPage";
 import DashboardPage from "@/pages/DashboardPage";
 import DivisionsPage from "@/pages/DivisionsPage";
-import EventsPage from "@/pages/EventsPage";
-import ExercisesPage from "@/pages/ExercisesPage";
 import LoginPage from "@/pages/LoginPage";
-import PlansPage from "@/pages/PlansPage";
 import ProfilePage from "@/pages/ProfilePage";
 import RegisterPage from "@/pages/RegisterPage";
 import SessionDetailPage from "@/pages/SessionDetailPage";
-import SessionsPage from "@/pages/SessionsPage";
-import ShopPage from "@/pages/ShopPage";
-import TimerPage from "@/pages/TimerPage";
-import XPPage from "@/pages/XPPage";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 
 export default function App() {
@@ -32,18 +22,8 @@ export default function App() {
           <Route element={<ProtectedRoute />}>
             <Route element={<AppLayout />}>
               <Route path="/" element={<DashboardPage />} />
-              <Route path="/exercises" element={<ExercisesPage />} />
-              <Route path="/plans" element={<PlansPage />} />
-              <Route path="/sessions" element={<SessionsPage />} />
-              <Route path="/sessions/:id" element={<SessionDetailPage />} />
-              <Route path="/xp" element={<XPPage />} />
               <Route path="/divisions" element={<DivisionsPage />} />
-              <Route path="/centers" element={<CentersPage />} />
-              <Route path="/coaches" element={<CoachesPage />} />
-              <Route path="/shop" element={<ShopPage />} />
-              <Route path="/events" element={<EventsPage />} />
-              <Route path="/timer" element={<TimerPage />} />
-              <Route path="/coach" element={<CoachPage />} />
+              <Route path="/sessions/:id" element={<SessionDetailPage />} />
               <Route path="/profile" element={<ProfilePage />} />
             </Route>
           </Route>

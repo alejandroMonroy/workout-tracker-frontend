@@ -1,7 +1,20 @@
 import WodRunner from "@/components/WodRunner";
+import { useTimer, type TimerMode } from "@/hooks/useTimer";
+import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
-import type { Exercise, PlanSession, WorkoutSession, WorkoutTemplate } from "@/types/api";
-import { CheckCircle, Loader2, Plus, Search, Trash2 } from "lucide-react";
+import type { Exercise, WorkoutSession, WorkoutTemplate } from "@/types/api";
+import {
+  CheckCircle,
+  Loader2,
+  Pause,
+  Play,
+  Plus,
+  RotateCcw,
+  Search,
+  Timer,
+  Trash2,
+  Volume2,
+} from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
@@ -14,15 +27,67 @@ interface SetForm {
   notes: string;
 }
 
+function formatTime(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+}
+
+const TIMER_MODES: { value: TimerMode; label: string }[] = [
+  { value: "stopwatch", label: "Cronómetro" },
+  { value: "amrap", label: "AMRAP" },
+  { value: "emom", label: "EMOM" },
+  { value: "for_time", label: "For Time" },
+  { value: "tabata", label: "Tabata" },
+];
+
 export default function SessionDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [session, setSession] = useState<WorkoutSession | null>(null);
   const [template, setTemplate] = useState<WorkoutTemplate | null>(null);
-  const [planSession, setPlanSession] = useState<PlanSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [finishing, setFinishing] = useState(false);
   const initRef = useRef(false);
+
+  // Timer panel
+  const [showTimer, setShowTimer] = useState(false);
+  const [timerMode, setTimerMode] = useState<TimerMode>("stopwatch");
+  const [durationMin, setDurationMin] = useState(12);
+  const [intervalSec, setIntervalSec] = useState(60);
+  const [rounds, setRounds] = useState(8);
+  const [workSec, setWorkSec] = useState(20);
+  const [restSec, setRestSec] = useState(10);
+
+  const beep = () => {
+    try {
+      const ctx = new AudioContext();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = 880;
+      gain.gain.value = 0.3;
+      osc.start();
+      osc.stop(ctx.currentTime + 0.15);
+    } catch { /* Audio not available */ }
+  };
+
+  const timer = useTimer({
+    mode: timerMode,
+    durationSec: timerMode === "amrap" || timerMode === "for_time" ? durationMin * 60 : 0,
+    intervalSec,
+    rounds,
+    workSec,
+    restSec,
+    onFinish: beep,
+    onRound: beep,
+  });
+
+  const displayTime =
+    timerMode === "stopwatch" || timerMode === "for_time"
+      ? formatTime(timer.elapsed)
+      : formatTime(timer.remaining);
 
   // Exercise search
   const [exerciseSearch, setExerciseSearch] = useState("");
@@ -46,30 +111,15 @@ export default function SessionDetailPage() {
       setSession(s);
       if (s.template_id) {
         try {
-          const t = await api.get<WorkoutTemplate>(
-            `/api/templates/${s.template_id}`,
-          );
+          const t = await api.get<WorkoutTemplate>(`/api/templates/${s.template_id}`);
           setTemplate(t);
-        } catch {
-          /* template access error */
-        }
-      }
-      if (s.plan_session_id) {
-        try {
-          const ps = await api.get<PlanSession>(
-            `/api/plans/sessions/${s.plan_session_id}`,
-          );
-          setPlanSession(ps);
-        } catch {
-          /* plan session access error */
-        }
+        } catch { /* ignore */ }
       }
     } catch {
-      navigate("/sessions");
+      navigate("/profile");
     }
   }, [id, navigate]);
 
-  /* initial load */
   useEffect(() => {
     if (initRef.current) return;
     initRef.current = true;
@@ -80,39 +130,21 @@ export default function SessionDetailPage() {
         setSession(s);
         if (s.template_id) {
           try {
-            const t = await api.get<WorkoutTemplate>(
-              `/api/templates/${s.template_id}`,
-            );
+            const t = await api.get<WorkoutTemplate>(`/api/templates/${s.template_id}`);
             setTemplate(t);
-          } catch {
-            /* ignore */
-          }
-        }
-        if (s.plan_session_id) {
-          try {
-            const ps = await api.get<PlanSession>(
-              `/api/plans/sessions/${s.plan_session_id}`,
-            );
-            setPlanSession(ps);
-          } catch {
-            /* ignore */
-          }
+          } catch { /* ignore */ }
         }
       } catch {
-        navigate("/sessions");
+        navigate("/profile");
       } finally {
         setLoading(false);
       }
     })();
   }, [id, navigate]);
 
-  /* ── Exercise search helpers ── */
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (
-        exerciseSearchRef.current &&
-        !exerciseSearchRef.current.contains(e.target as Node)
-      ) {
+      if (exerciseSearchRef.current && !exerciseSearchRef.current.contains(e.target as Node)) {
         setShowExerciseDropdown(false);
       }
     };
@@ -124,24 +156,17 @@ export default function SessionDetailPage() {
     try {
       const params = new URLSearchParams({ limit: "10" });
       if (query.trim()) params.set("search", query.trim());
-      const results = await api.get<Exercise[]>(
-        `/api/exercises?${params}`,
-      );
+      const results = await api.get<Exercise[]>(`/api/exercises?${params}`);
       setExerciseResults(results);
       setShowExerciseDropdown(true);
-    } catch {
-      /* ignore */
-    }
+    } catch { /* ignore */ }
   };
 
   const handleExerciseSearch = (value: string) => {
     setExerciseSearch(value);
     setForm((f) => ({ ...f, exercise_id: 0 }));
     clearTimeout(exerciseSearchTimer.current);
-    exerciseSearchTimer.current = setTimeout(
-      () => fetchExercises(value),
-      250,
-    );
+    exerciseSearchTimer.current = setTimeout(() => fetchExercises(value), 250);
   };
 
   const selectExercise = (ex: Exercise) => {
@@ -176,7 +201,7 @@ export default function SessionDetailPage() {
     setFinishing(true);
     try {
       await api.patch(`/api/sessions/${id}/finish`, {});
-      navigate("/sessions");
+      navigate("/profile");
     } catch {
       setFinishing(false);
     }
@@ -194,33 +219,10 @@ export default function SessionDetailPage() {
 
   const isActive = !session.finished_at;
 
-  /* ── Template-based active session → Gamified WOD Runner ── */
   if (isActive && template && session.template_id) {
-    return (
-      <WodRunner
-        template={template}
-        sessionId={session.id}
-        onFinish={loadSession}
-      />
-    );
+    return <WodRunner template={template} sessionId={session.id} onFinish={loadSession} />;
   }
 
-  /* ── Plan-session-based active session → run WOD blocks via WodRunner ── */
-  if (isActive && planSession && session.plan_session_id) {
-    // Find the first block with a modality set (any block type can be a timed WOD)
-    const wodBlock = planSession.blocks.find((b) => b.modality != null);
-    if (wodBlock) {
-      return (
-        <WodRunner
-          block={wodBlock}
-          sessionId={session.id}
-          onFinish={loadSession}
-        />
-      );
-    }
-  }
-
-  /* ── Free session / completed session → Manual form + summary ── */
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       {/* Header */}
@@ -233,30 +235,166 @@ export default function SessionDetailPage() {
           </p>
         </div>
         {isActive && (
-          <button
-            onClick={finishSession}
-            disabled={finishing}
-            className="flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:bg-accent/90 disabled:opacity-50"
-          >
-            {finishing ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <CheckCircle className="h-4 w-4" />
-            )}
-            Finalizar
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowTimer(!showTimer)}
+              className={cn(
+                "flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors",
+                showTimer
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border text-muted-foreground hover:bg-secondary",
+              )}
+            >
+              <Timer className="h-4 w-4" />
+              Timer
+            </button>
+            <button
+              onClick={finishSession}
+              disabled={finishing}
+              className="flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:bg-accent/90 disabled:opacity-50"
+            >
+              {finishing ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+              Finalizar
+            </button>
+          </div>
         )}
       </div>
 
-      {/* Add set form (free sessions) */}
+      {/* Timer Panel */}
+      {showTimer && isActive && (
+        <div className="rounded-lg border border-border bg-card p-4 shadow-sm space-y-4">
+          {/* Mode selector */}
+          <div className="flex flex-wrap gap-2">
+            {TIMER_MODES.map((m) => (
+              <button
+                key={m.value}
+                onClick={() => { setTimerMode(m.value); timer.reset(); }}
+                className={cn(
+                  "rounded-md border px-3 py-1.5 text-sm font-medium transition-colors",
+                  timerMode === m.value
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border text-muted-foreground hover:bg-secondary",
+                )}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Settings */}
+          {!timer.running && !timer.finished && (
+            <div className="grid grid-cols-2 gap-3">
+              {(timerMode === "amrap" || timerMode === "for_time") && (
+                <div>
+                  <label className="text-xs text-muted-foreground">Duración (min)</label>
+                  <input
+                    type="number" min={1} max={60} value={durationMin}
+                    onChange={(e) => setDurationMin(Number(e.target.value))}
+                    className="mt-1 block w-full rounded-md border border-border px-3 py-2 text-sm"
+                  />
+                </div>
+              )}
+              {timerMode === "emom" && (
+                <>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Intervalo (seg)</label>
+                    <input
+                      type="number" min={10} max={300} value={intervalSec}
+                      onChange={(e) => setIntervalSec(Number(e.target.value))}
+                      className="mt-1 block w-full rounded-md border border-border px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Rondas</label>
+                    <input
+                      type="number" min={1} max={50} value={rounds}
+                      onChange={(e) => setRounds(Number(e.target.value))}
+                      className="mt-1 block w-full rounded-md border border-border px-3 py-2 text-sm"
+                    />
+                  </div>
+                </>
+              )}
+              {timerMode === "tabata" && (
+                <>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Trabajo (seg)</label>
+                    <input
+                      type="number" min={5} max={120} value={workSec}
+                      onChange={(e) => setWorkSec(Number(e.target.value))}
+                      className="mt-1 block w-full rounded-md border border-border px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Descanso (seg)</label>
+                    <input
+                      type="number" min={5} max={120} value={restSec}
+                      onChange={(e) => setRestSec(Number(e.target.value))}
+                      className="mt-1 block w-full rounded-md border border-border px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Rondas</label>
+                    <input
+                      type="number" min={1} max={50} value={rounds}
+                      onChange={(e) => setRounds(Number(e.target.value))}
+                      className="mt-1 block w-full rounded-md border border-border px-3 py-2 text-sm"
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Display */}
+          <div className="flex flex-col items-center gap-3 rounded-xl border border-border bg-secondary/30 py-5">
+            {timerMode === "tabata" && timer.running && (
+              <span className={cn("text-sm font-bold uppercase", timer.phase === "work" ? "text-accent" : "text-destructive")}>
+                {timer.phase === "work" ? "💪 Trabajo" : "😮‍💨 Descanso"}
+              </span>
+            )}
+            <span className="font-mono text-5xl font-bold tabular-nums">{displayTime}</span>
+            {(timerMode === "emom" || timerMode === "tabata") && (
+              <span className="text-sm text-muted-foreground">Ronda {timer.round} / {rounds}</span>
+            )}
+            {timer.finished && (
+              <span className="rounded-full bg-accent/10 px-4 py-1.5 text-sm font-semibold text-accent">
+                🏁 ¡Terminado! — {formatTime(timer.elapsed)}
+              </span>
+            )}
+            <div className="flex gap-2">
+              <button
+                onClick={timer.toggle}
+                disabled={timer.finished}
+                className={cn(
+                  "flex h-12 w-12 items-center justify-center rounded-full text-white shadow transition-transform hover:scale-105 disabled:opacity-40",
+                  timer.running ? "bg-yellow-500" : "bg-accent",
+                )}
+              >
+                {timer.running ? <Pause className="h-5 w-5" /> : <Play className="ml-0.5 h-5 w-5" />}
+              </button>
+              <button
+                onClick={timer.reset}
+                className="flex h-12 w-12 items-center justify-center rounded-full border border-border bg-white text-muted-foreground shadow transition-transform hover:scale-105 hover:text-foreground"
+              >
+                <RotateCcw className="h-4 w-4" />
+              </button>
+              <button
+                onClick={beep}
+                className="flex h-12 w-12 items-center justify-center rounded-full border border-border bg-white text-muted-foreground shadow transition-transform hover:scale-105 hover:text-foreground"
+              >
+                <Volume2 className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add set form */}
       {isActive && (
         <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
           <h2 className="mb-3 font-semibold">Agregar Serie</h2>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-            <div
-              ref={exerciseSearchRef}
-              className="col-span-2 sm:col-span-5 relative"
-            >
+            <div ref={exerciseSearchRef} className="col-span-2 sm:col-span-5 relative">
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <input
@@ -265,8 +403,7 @@ export default function SessionDetailPage() {
                   value={exerciseSearch}
                   onChange={(e) => handleExerciseSearch(e.target.value)}
                   onFocus={() => {
-                    if (exerciseResults.length > 0)
-                      setShowExerciseDropdown(true);
+                    if (exerciseResults.length > 0) setShowExerciseDropdown(true);
                     else fetchExercises(exerciseSearch);
                   }}
                   className="block w-full rounded-md border border-border bg-white py-2 pl-9 pr-3 text-sm"
@@ -288,33 +425,22 @@ export default function SessionDetailPage() {
               )}
             </div>
             <input
-              type="number"
-              placeholder="Series"
-              min="1"
-              value={form.sets}
+              type="number" placeholder="Series" min="1" value={form.sets}
               onChange={(e) => setForm({ ...form, sets: e.target.value })}
               className="rounded-md border border-border px-3 py-2 text-sm"
             />
             <input
-              type="number"
-              placeholder="Reps"
-              value={form.reps}
+              type="number" placeholder="Reps" value={form.reps}
               onChange={(e) => setForm({ ...form, reps: e.target.value })}
               className="rounded-md border border-border px-3 py-2 text-sm"
             />
             <input
-              type="number"
-              placeholder="Peso (kg)"
-              value={form.weight_kg}
+              type="number" placeholder="Peso (kg)" value={form.weight_kg}
               onChange={(e) => setForm({ ...form, weight_kg: e.target.value })}
               className="rounded-md border border-border px-3 py-2 text-sm"
             />
             <input
-              type="number"
-              placeholder="RPE"
-              min="1"
-              max="10"
-              value={form.rpe}
+              type="number" placeholder="RPE" min="1" max="10" value={form.rpe}
               onChange={(e) => setForm({ ...form, rpe: e.target.value })}
               className="rounded-md border border-border px-3 py-2 text-sm"
             />
@@ -341,18 +467,12 @@ export default function SessionDetailPage() {
         ) : (
           <div className="divide-y divide-border">
             {session.sets.map((s) => (
-              <div
-                key={s.id}
-                className="flex items-center justify-between px-5 py-3"
-              >
+              <div key={s.id} className="flex items-center justify-between px-5 py-3">
                 <div>
-                  <p className="text-sm font-medium">
-                    {s.exercise?.name ?? `Ejercicio #${s.exercise_id}`}
-                  </p>
+                  <p className="text-sm font-medium">{s.exercise?.name ?? `Ejercicio #${s.exercise_id}`}</p>
                   <p className="text-xs text-muted-foreground">
                     Set #{s.set_number}
-                    {s.reps != null &&
-                      ` · ${s.sets_count ?? 1}x${s.reps} reps`}
+                    {s.reps != null && ` · ${s.sets_count ?? 1}x${s.reps} reps`}
                     {s.weight_kg != null && ` · ${s.weight_kg} kg`}
                     {s.rpe != null && ` · RPE ${s.rpe}`}
                   </p>

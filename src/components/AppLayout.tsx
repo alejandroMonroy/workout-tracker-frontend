@@ -2,43 +2,21 @@ import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
 import {
-    BookOpen,
-    Building2,
-    Calendar,
     Dumbbell,
-    HeartHandshake,
     LayoutDashboard,
-    ListChecks,
     LogOut,
     Menu,
     Plus,
     Shield,
-    ShoppingBag,
-    Timer,
     User,
-    Users,
     X,
-    Zap,
 } from "lucide-react";
 import { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 
 const athleteLinks = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/exercises", label: "Ejercicios", icon: Dumbbell },
-  { to: "/plans", label: "Planes", icon: BookOpen },
-  { to: "/sessions", label: "Historial", icon: ListChecks },
-  { to: "/xp", label: "Experiencia", icon: Zap },
   { to: "/divisions", label: "Liga", icon: Shield },
-  { to: "/centers", label: "Centros", icon: Building2 },
-  { to: "/coaches", label: "Coaches", icon: HeartHandshake },
-  { to: "/shop", label: "Tienda", icon: ShoppingBag },
-  { to: "/events", label: "Eventos", icon: Calendar },
-  { to: "/timer", label: "Timer", icon: Timer },
-];
-
-const coachLinks = [
-  { to: "/coach", label: "Panel Coach", icon: Users },
 ];
 
 export default function AppLayout() {
@@ -61,10 +39,7 @@ export default function AppLayout() {
     }
   };
 
-  const links = [
-    ...athleteLinks,
-    ...(user?.role === "coach" || user?.role === "admin" ? coachLinks : []),
-  ];
+  const links = athleteLinks;
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">

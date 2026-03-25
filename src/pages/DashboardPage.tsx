@@ -1,46 +1,20 @@
 import { useAuth } from "@/hooks/useAuth";
 import { formatDate, formatDuration } from "@/lib/utils";
 import { api } from "@/services/api";
-import type { CoachInvite, DashboardSummary, EventType } from "@/types/api";
+import type { DashboardSummary } from "@/types/api";
 import {
     Activity,
-    Calendar,
-    Check,
     ChevronLeft,
     ChevronRight,
     Flame,
-    Loader2,
-    Mail,
-    MapPin,
     Shield,
     Trophy,
-    X,
     Zap,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 /* ── Constants ── */
-
-const EVENT_TYPE_LABELS: Record<EventType, string> = {
-  competition: "Competición",
-  workshop: "Taller",
-  exhibition: "Exhibición",
-  social: "Social",
-  open_day: "Puertas Abiertas",
-  seminar: "Seminario",
-  other: "Otro",
-};
-
-const EVENT_TYPE_COLORS: Record<EventType, string> = {
-  competition: "bg-red-500",
-  workshop: "bg-blue-500",
-  exhibition: "bg-purple-500",
-  social: "bg-yellow-500",
-  open_day: "bg-green-500",
-  seminar: "bg-indigo-500",
-  other: "bg-gray-400",
-};
 
 const DAYS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 const MONTHS = [
@@ -101,38 +75,18 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [data, setData] = useState<DashboardSummary | null>(null);
-  const [invites, setInvites] = useState<CoachInvite[]>([]);
-  const [acceptingId, setAcceptingId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [calMonth, setCalMonth] = useState(() => {
     const n = new Date();
     return new Date(n.getFullYear(), n.getMonth(), 1);
   });
 
-  const fetchInvites = () => {
-    api.get<CoachInvite[]>("/api/coach/invites/pending").then(setInvites).catch(() => {});
-  };
-
   useEffect(() => {
     api.get<DashboardSummary>("/api/dashboard/summary")
       .then(setData)
       .catch(() => {})
       .finally(() => setLoading(false));
-    fetchInvites();
   }, []);
-
-  const handleAcceptInvite = async (inviteId: number) => {
-    setAcceptingId(inviteId);
-    try {
-      await api.post(`/api/coach/invite/${inviteId}/accept`);
-      setInvites((prev) => prev.filter((i) => i.invite_id !== inviteId));
-    } catch { /* empty */ }
-    finally { setAcceptingId(null); }
-  };
-
-  const handleDeclineInvite = (inviteId: number) => {
-    setInvites((prev) => prev.filter((i) => i.invite_id !== inviteId));
-  };
 
   /* Calendar grid */
   const calendarDays = useMemo(() => {
@@ -155,19 +109,6 @@ export default function DashboardPage() {
   const sessionDateSet = useMemo(() => {
     if (!data) return new Set<string>();
     return new Set(data.session_dates.map((d) => d.date));
-  }, [data]);
-
-  /* Event dates map */
-  type UpcomingEvent = DashboardSummary["upcoming_events"][number];
-  const eventDateMap = useMemo(() => {
-    if (!data) return new Map<string, UpcomingEvent[]>();
-    const map = new Map<string, UpcomingEvent[]>();
-    for (const ev of data.upcoming_events) {
-      const key = ev.event_date.slice(0, 10);
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(ev);
-    }
-    return map;
   }, [data]);
 
   const today = new Date();
@@ -201,35 +142,6 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* Coach invites */}
-      {invites.length > 0 && (
-        <div className="rounded-xl bg-indigo-50 p-4 shadow-sm">
-          <h2 className="mb-3 flex items-center gap-2 font-semibold text-indigo-800">
-            <Mail className="h-5 w-5" />
-            Invitaciones de Coach ({invites.length})
-          </h2>
-          <div className="space-y-2">
-            {invites.map((inv) => (
-              <div key={inv.invite_id} className="flex items-center justify-between rounded-md bg-white px-4 py-3 shadow-sm">
-                <div>
-                  <p className="text-sm font-medium text-foreground">{inv.coach.name}</p>
-                  <p className="text-xs text-muted-foreground">{inv.coach.email} · {formatDate(inv.created_at)}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button onClick={() => handleAcceptInvite(inv.invite_id)} disabled={acceptingId === inv.invite_id} className="flex items-center gap-1 rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent/90 disabled:opacity-50">
-                    {acceptingId === inv.invite_id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                    Aceptar
-                  </button>
-                  <button onClick={() => handleDeclineInvite(inv.invite_id)} className="flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-secondary">
-                    <X className="h-3.5 w-3.5" /> Rechazar
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Top row: Sessions + XP + League */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <StatCard
@@ -237,11 +149,11 @@ export default function DashboardPage() {
           label="Sesiones (30d)"
           value={String(t?.total_sessions ?? 0)}
           color="bg-primary/10 text-primary"
-          onClick={() => navigate("/sessions")}
+          onClick={() => navigate("/profile")}
         />
 
         {/* XP Progress card */}
-        <button onClick={() => navigate("/xp")} className="rounded-xl bg-card p-5 shadow-sm text-left hover:shadow-md transition-shadow">
+        <button onClick={() => navigate("/profile")} className="rounded-xl bg-card p-5 shadow-sm text-left hover:shadow-md transition-shadow">
           <div className="flex items-center gap-3 mb-2">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-yellow-100 text-yellow-600">
               <Zap className="h-5 w-5" />
@@ -280,109 +192,61 @@ export default function DashboardPage() {
         </button>
       </div>
 
-      {/* Main grid: Calendar + XP/League */}
-      <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
-        {/* Calendar */}
-        <div className="rounded-2xl bg-card shadow-sm p-4 sm:p-5">
-          {/* Month nav */}
-          <div className="flex items-center justify-between mb-5">
-            <button onClick={() => setCalMonth(new Date(calMonth.getFullYear(), calMonth.getMonth() - 1, 1))} className="rounded-full p-2 hover:bg-secondary transition-colors">
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <h2 className="text-sm font-semibold tracking-tight">{MONTHS[calMonth.getMonth()]} {calMonth.getFullYear()}</h2>
-            <button onClick={() => setCalMonth(new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 1))} className="rounded-full p-2 hover:bg-secondary transition-colors">
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-          {/* Day headers */}
-          <div className="grid grid-cols-7 mb-1">
-            {DAYS.map((d) => (
-              <div key={d} className="py-1 text-center text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">{d}</div>
-            ))}
-          </div>
-          {/* Day grid */}
-          <div className="grid grid-cols-7 gap-0.5">
-            {calendarDays.map((day, i) => {
-              const isCurrentMonth = day.getMonth() === calMonth.getMonth();
-              const isToday = isSameDay(day, today);
-              const isPast = !isToday && day < today;
-              const dayStr = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`;
-              const hasSession = sessionDateSet.has(dayStr);
-              const dayEvents = eventDateMap.get(dayStr) || [];
-              const hasContent = hasSession || dayEvents.length > 0;
-
-              return (
-                <div
-                  key={i}
-                  className={`relative flex flex-col items-center justify-start rounded-lg p-1 min-h-[48px] transition-colors ${
-                    isToday ? "bg-primary/5" : hasContent && isCurrentMonth ? "bg-secondary/40" : ""
-                  } ${!isCurrentMonth ? "opacity-20" : isPast ? "opacity-40" : ""}`}
-                >
-                  <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium ${
-                    isToday
-                      ? "bg-primary text-white shadow-sm"
-                      : isPast && isCurrentMonth
-                        ? "text-muted-foreground"
-                        : "text-foreground"
-                  }`}>
-                    {day.getDate()}
-                  </span>
-                  {hasContent && (
-                    <div className="mt-auto flex items-center justify-center gap-[3px] pb-0.5">
-                      {hasSession && <span className="h-[5px] w-[5px] rounded-full bg-primary" title="Entrenamiento" />}
-                      {dayEvents.map((ev: UpcomingEvent) => (
-                        <span key={ev.id} className={`h-[5px] w-[5px] rounded-full ${EVENT_TYPE_COLORS[ev.event_type]}`} title={ev.name} />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-          {/* Legend */}
-          <div className="flex flex-wrap items-center justify-center gap-4 mt-4 pt-3 text-[10px] text-muted-foreground">
-            <span className="flex items-center gap-1.5"><span className="h-[6px] w-[6px] rounded-full bg-primary" /> Entreno</span>
-            <span className="flex items-center gap-1.5"><span className="h-[6px] w-[6px] rounded-full bg-red-500" /> Comp.</span>
-            <span className="flex items-center gap-1.5"><span className="h-[6px] w-[6px] rounded-full bg-blue-500" /> Taller</span>
-            <span className="flex items-center gap-1.5"><span className="h-[6px] w-[6px] rounded-full bg-purple-500" /> Exhib.</span>
-            <span className="flex items-center gap-1.5"><span className="h-[6px] w-[6px] rounded-full bg-yellow-500" /> Social</span>
-          </div>
+      {/* Calendar */}
+      <div className="rounded-2xl bg-card shadow-sm p-4 sm:p-5">
+        {/* Month nav */}
+        <div className="flex items-center justify-between mb-5">
+          <button onClick={() => setCalMonth(new Date(calMonth.getFullYear(), calMonth.getMonth() - 1, 1))} className="rounded-full p-2 hover:bg-secondary transition-colors">
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <h2 className="text-sm font-semibold tracking-tight">{MONTHS[calMonth.getMonth()]} {calMonth.getFullYear()}</h2>
+          <button onClick={() => setCalMonth(new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 1))} className="rounded-full p-2 hover:bg-secondary transition-colors">
+            <ChevronRight className="h-4 w-4" />
+          </button>
         </div>
+        {/* Day headers */}
+        <div className="grid grid-cols-7 mb-1">
+          {DAYS.map((d) => (
+            <div key={d} className="py-1 text-center text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">{d}</div>
+          ))}
+        </div>
+        {/* Day grid */}
+        <div className="grid grid-cols-7 gap-0.5">
+          {calendarDays.map((day, i) => {
+            const isCurrentMonth = day.getMonth() === calMonth.getMonth();
+            const isToday = isSameDay(day, today);
+            const isPast = !isToday && day < today;
+            const dayStr = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`;
+            const hasSession = sessionDateSet.has(dayStr);
 
-        {/* Right column: Upcoming events — stretch to match calendar */}
-        <div className="flex flex-col">
-          <div className="rounded-xl bg-card shadow-sm flex flex-col flex-1">
-            <div className="flex items-center justify-between px-5 py-3">
-              <h2 className="flex items-center gap-2 font-semibold">
-                <Calendar className="h-4 w-4 text-primary" />
-                Próximos Eventos
-              </h2>
-              <button onClick={() => navigate("/events")} className="text-xs text-primary hover:underline">Ver todos</button>
-            </div>
-            <div className="space-y-0.5">
-              {(!data?.upcoming_events || data.upcoming_events.length === 0) ? (
-                <p className="px-5 py-6 text-center text-sm text-muted-foreground">No tienes eventos próximos</p>
-              ) : (
-                data.upcoming_events.map((ev) => (
-                  <div key={ev.id} className="px-5 py-3 flex items-start gap-3">
-                    <span className={`mt-1 inline-block h-2.5 w-2.5 rounded-full shrink-0 ${EVENT_TYPE_COLORS[ev.event_type]}`} />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium truncate">{ev.name}</p>
-                      <p className="text-xs text-muted-foreground">{formatDate(ev.event_date)}</p>
-                      {ev.location && (
-                        <p className="text-xs text-muted-foreground flex items-center gap-0.5 mt-0.5">
-                          <MapPin className="h-3 w-3" /> {ev.location}
-                        </p>
-                      )}
-                    </div>
-                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${EVENT_TYPE_COLORS[ev.event_type]} text-white`}>
-                      {EVENT_TYPE_LABELS[ev.event_type]}
-                    </span>
+            return (
+              <div
+                key={i}
+                className={`relative flex flex-col items-center justify-start rounded-lg p-1 min-h-[48px] transition-colors ${
+                  isToday ? "bg-primary/5" : hasSession && isCurrentMonth ? "bg-secondary/40" : ""
+                } ${!isCurrentMonth ? "opacity-20" : isPast ? "opacity-40" : ""}`}
+              >
+                <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium ${
+                  isToday
+                    ? "bg-primary text-white shadow-sm"
+                    : isPast && isCurrentMonth
+                      ? "text-muted-foreground"
+                      : "text-foreground"
+                }`}>
+                  {day.getDate()}
+                </span>
+                {hasSession && (
+                  <div className="mt-auto flex items-center justify-center gap-[3px] pb-0.5">
+                    <span className="h-[5px] w-[5px] rounded-full bg-primary" title="Entrenamiento" />
                   </div>
-                ))
-              )}
-            </div>
-          </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        {/* Legend */}
+        <div className="flex flex-wrap items-center justify-center gap-4 mt-4 pt-3 text-[10px] text-muted-foreground">
+          <span className="flex items-center gap-1.5"><span className="h-[6px] w-[6px] rounded-full bg-primary" /> Entreno</span>
         </div>
       </div>
 
@@ -392,7 +256,7 @@ export default function DashboardPage() {
         <div className="rounded-xl bg-card shadow-sm">
           <div className="flex items-center justify-between px-5 py-4">
             <h2 className="font-semibold">Sesiones Recientes</h2>
-            <button onClick={() => navigate("/sessions")} className="text-xs text-primary hover:underline">Ver todas</button>
+            <button onClick={() => navigate("/profile")} className="text-xs text-primary hover:underline">Ver todas</button>
           </div>
           <div className="space-y-0.5">
             {(!data?.recent_sessions || data.recent_sessions.length === 0) ? (
