@@ -2,12 +2,20 @@ import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
 import {
+    BarChart3,
+    BookOpen,
+    Building2,
+    CalendarDays,
+    ClipboardList,
     Dumbbell,
     LayoutDashboard,
     LogOut,
     Menu,
+    MessageSquare,
     Plus,
     Shield,
+    ShoppingBag,
+    Swords,
     User,
     Users,
     X,
@@ -17,8 +25,30 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 
 const athleteLinks = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/challenges", label: "Desafíos", icon: Swords },
   { to: "/divisions", label: "Liga", icon: Shield },
   { to: "/athletes", label: "Atletas", icon: Users },
+  { to: "/gyms", label: "Gimnasios", icon: Building2 },
+  { to: "/plans", label: "Planes", icon: BookOpen },
+  { to: "/shop", label: "Tienda", icon: ShoppingBag },
+];
+
+const coachLinks = [
+  { to: "/", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/coach/workouts", label: "Workouts", icon: Dumbbell },
+  { to: "/coach/plans", label: "Planes", icon: ClipboardList },
+  { to: "/coach/athletes", label: "Atletas", icon: Users },
+  { to: "/coach/inbox", label: "Inbox", icon: MessageSquare },
+  { to: "/coach/stats", label: "Estadísticas", icon: BarChart3 },
+];
+
+const gymLinks = [
+  { to: "/gym/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/gym/schedule", label: "Horarios", icon: CalendarDays },
+  { to: "/gym/workouts", label: "Workouts", icon: Dumbbell },
+  { to: "/gym/members", label: "Miembros", icon: Users },
+  { to: "/gym/analytics", label: "Analítica", icon: BarChart3 },
+  { to: "/gym/marketplace", label: "Tienda", icon: ShoppingBag },
 ];
 
 export default function AppLayout() {
@@ -41,7 +71,9 @@ export default function AppLayout() {
     }
   };
 
-  const links = athleteLinks;
+  const isGym = user?.role === "gym";
+  const isCoach = user?.role === "coach";
+  const links = isGym ? gymLinks : isCoach ? coachLinks : athleteLinks;
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
@@ -96,14 +128,16 @@ export default function AppLayout() {
             </NavLink>
           ))}
 
-          {/* New session action */}
-          <button
-            onClick={startFreeSession}
-            className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-          >
-            <Plus className="h-5 w-5" />
-            Nueva Sesión
-          </button>
+          {/* New session action — athletes only */}
+          {!isGym && !isCoach && (
+            <button
+              onClick={startFreeSession}
+              className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            >
+              <Plus className="h-5 w-5" />
+              Nueva Sesión
+            </button>
+          )}
         </nav>
 
         {/* User */}

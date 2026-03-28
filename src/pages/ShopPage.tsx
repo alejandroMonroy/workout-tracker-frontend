@@ -1,6 +1,6 @@
 import { useAuth } from "@/hooks/useAuth";
 import { api } from "@/services/api";
-import type { Product, ProductRedemptionResult } from "@/types/api";
+import type { GymProduct, ProductRedemptionResult } from "@/types/api";
 import {
     ExternalLink,
     Loader2,
@@ -16,7 +16,7 @@ type Tab = "product" | "discount";
 export default function ShopPage() {
   const { user } = useAuth();
   const [tab, setTab] = useState<Tab>("product");
-  const [items, setItems] = useState<Product[]>([]);
+  const [items, setItems] = useState<GymProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [redeeming, setRedeeming] = useState<number | null>(null);
   const [actionMsg, setActionMsg] = useState("");
@@ -24,7 +24,7 @@ export default function ShopPage() {
   const fetchItems = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await api.get<Product[]>("/api/companies/products/all");
+      const data = await api.get<GymProduct[]>("/api/marketplace");
       setItems(data);
     } catch {
       /* empty */
@@ -39,7 +39,7 @@ export default function ShopPage() {
     setRedeeming(productId);
     setActionMsg("");
     try {
-      const res = await api.post<ProductRedemptionResult>(`/api/companies/products/${productId}/redeem`);
+      const res = await api.post<ProductRedemptionResult>(`/api/marketplace/${productId}/redeem`);
       setActionMsg(`✅ ${res.message}`);
       if (res.external_url) window.open(res.external_url, "_blank");
     } catch (err) {
@@ -59,7 +59,7 @@ export default function ShopPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Tienda</h1>
           <p className="text-sm text-muted-foreground">
-            Canjea tus XP por productos y descuentos de nuestras empresas colaboradoras.
+            Canjea tus XP por productos y descuentos ofrecidos por los gimnasios.
           </p>
         </div>
         {/* XP balance */}
@@ -138,7 +138,7 @@ export default function ShopPage() {
                       )}
                     </div>
                     <p className="text-xs font-medium text-muted-foreground">
-                      {p.company_name}
+                      {p.gym_name}
                     </p>
                   </div>
                   {p.item_type === "discount" && p.discount_pct != null && (

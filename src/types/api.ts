@@ -1,6 +1,6 @@
 // === User ===
 
-export type UserRole = "athlete" | "coach" | "admin";
+export type UserRole = "athlete" | "coach" | "admin" | "gym";
 export type UnitsPreference = "metric" | "imperial";
 
 export type SexType = "male" | "female" | "other";
@@ -118,11 +118,15 @@ export interface SessionSet {
   notes: string | null;
 }
 
+export type SessionType = "manual" | "class";
+
 export interface WorkoutSession {
   id: number;
   user_id: number;
   template_id: number | null;
-  plan_session_id: number | null;
+  plan_workout_id: number | null;
+  class_schedule_id: number | null;
+  session_type: SessionType;
   started_at: string;
   finished_at: string | null;
   total_duration_sec: number | null;
@@ -136,7 +140,7 @@ export interface SessionListItem {
   id: number;
   user_id: number;
   template_id: number | null;
-  plan_session_id: number | null;
+  plan_workout_id: number | null;
   started_at: string;
   finished_at: string | null;
   total_duration_sec: number | null;
@@ -148,100 +152,6 @@ export interface SessionListItem {
   has_records: boolean;
 }
 
-// === Plan ===
-
-export type BlockType =
-  | "warmup"
-  | "skill"
-  | "strength"
-  | "wod"
-  | "cardio"
-  | "cooldown"
-  | "other";
-
-export type SubscriptionStatus = "active" | "cancelled" | "expired";
-
-export interface BlockExercise {
-  id: number;
-  exercise_id: number;
-  exercise?: Exercise;
-  order: number;
-  target_sets: number | null;
-  target_reps: number | null;
-  target_weight_kg: number | null;
-  target_distance_m: number | null;
-  target_duration_sec: number | null;
-  rest_sec: number | null;
-  notes: string | null;
-}
-
-export interface SessionBlock {
-  id: number;
-  name: string;
-  block_type: BlockType;
-  modality: WorkoutModality | null;
-  rounds: number | null;
-  time_cap_sec: number | null;
-  work_sec: number | null;
-  rest_sec: number | null;
-  order: number;
-  exercises: BlockExercise[];
-}
-
-export interface PlanSession {
-  id: number;
-  plan_id: number;
-  name: string;
-  description: string | null;
-  day_number: number;
-  blocks: SessionBlock[];
-}
-
-export interface Plan {
-  id: number;
-  name: string;
-  description: string | null;
-  duration_weeks: number | null;
-  is_public: boolean;
-  created_by: number;
-  coach_name: string | null;
-  created_at: string;
-  sessions: PlanSession[];
-}
-
-export interface PlanListItem {
-  id: number;
-  name: string;
-  description: string | null;
-  duration_weeks: number | null;
-  is_public: boolean;
-  created_by: number;
-  coach_name: string | null;
-  created_at: string;
-  session_count: number;
-}
-
-export interface Subscription {
-  id: number;
-  plan_id: number;
-  athlete_id: number;
-  status: SubscriptionStatus;
-  subscribed_at: string;
-  plan?: PlanListItem;
-}
-
-export type PlanEnrollmentStatus = "active" | "completed" | "cancelled";
-
-export interface PlanEnrollment {
-  id: number;
-  plan_id: number;
-  athlete_id: number;
-  coach_subscription_id: number | null;
-  assigned_by_coach: boolean;
-  status: PlanEnrollmentStatus;
-  enrolled_at: string;
-  plan?: PlanListItem;
-}
 
 // === Records ===
 
@@ -272,27 +182,23 @@ export interface CoachInvite {
 
 export type CoachSubscriptionStatus = "pending" | "active" | "cancelled" | "expired";
 
-export interface CoachProfile {
+export interface CoachPublic {
   id: number;
   name: string;
-  email: string;
   avatar_url: string | null;
-  athlete_count: number;
+  subscription_xp_price: number | null;
   plan_count: number;
-  xp_per_month: number;
-  subscription_status: CoachSubscriptionStatus | null;
-  subscription_initiated_by: "coach" | "athlete" | null;
+  subscriber_count: number;
+  is_subscribed: boolean;
 }
 
-export interface CoachSubscription {
+export interface CoachSubscriptionInfo {
   id: number;
-  athlete_id: number;
-  athlete: User;
-  status: CoachSubscriptionStatus;
+  coach_id: number;
+  coach_name: string;
+  coach_avatar_url: string | null;
   xp_per_month: number;
-  started_at: string | null;
-  expires_at: string | null;
-  created_at: string;
+  subscribed_at: string;
 }
 
 export interface CoachRequest {
@@ -569,6 +475,21 @@ export interface Product {
   created_at: string;
 }
 
+export interface GymProduct {
+  id: number;
+  gym_id: number;
+  gym_name: string;
+  name: string;
+  description: string | null;
+  item_type: "product" | "discount";
+  xp_cost: number | null;
+  discount_pct: number | null;
+  image_url: string | null;
+  external_url: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
 export interface ProductRedemptionResult {
   message: string;
   product_id: number;
@@ -691,6 +612,201 @@ export interface FriendshipResponse {
   other_user: AthletePublic;
 }
 
+// === Gym ===
+
+export type PlanType = "monthly" | "annual" | "tickets";
+export type MembershipStatus = "active" | "frozen" | "cancelled" | "expired" | "trial";
+export type GymBookingStatus = "confirmed" | "cancelled" | "attended" | "no_show";
+
+export interface GymPublic {
+  id: number;
+  owner_id: number;
+  name: string;
+  description: string | null;
+  logo_url: string | null;
+  website: string | null;
+  phone: string | null;
+  cancellation_hours: number;
+  free_trial_enabled: boolean;
+  created_at: string;
+}
+
+export interface GymLocation {
+  id: number;
+  gym_id: number;
+  name: string;
+  address: string | null;
+  city: string | null;
+  capacity: number;
+  is_active: boolean;
+}
+
+export interface GymPlan {
+  id: number;
+  gym_id: number;
+  name: string;
+  plan_type: PlanType;
+  xp_price: number;
+  sessions_included: number | null;
+  ticket_count: number | null;
+  is_active: boolean;
+}
+
+export interface GymMembership {
+  id: number;
+  gym_id: number;
+  user_id: number;
+  plan_id: number | null;
+  status: MembershipStatus;
+  tickets_remaining: number | null;
+  sessions_used_this_period: number;
+  started_at: string;
+  expires_at: string | null;
+  auto_renew: boolean;
+  is_trial: boolean;
+  gym_name: string | null;
+  plan_name: string | null;
+  plan_type: PlanType | null;
+  sessions_included: number | null;
+}
+
+export interface GymMember {
+  membership_id: number;
+  user_id: number;
+  user_name: string;
+  user_email: string;
+  avatar_url: string | null;
+  plan_name: string | null;
+  status: MembershipStatus;
+  tickets_remaining: number | null;
+  sessions_used_this_period: number;
+  started_at: string;
+  expires_at: string | null;
+}
+
+export interface GymTicketPurchase {
+  purchased_at: string;
+  plan_name: string;
+  tickets_bought: number | null;
+  xp_spent: number;
+}
+
+export interface GymClassTemplate {
+  id: number;
+  gym_id: number;
+  name: string;
+  description: string | null;
+  duration_minutes: number;
+  max_capacity: number;
+  tickets_cost: number;
+}
+
+export type GymClassBlockType = "cronometro" | "amrap" | "emom" | "for_time" | "tabata";
+export type GymClassLiveStatus = "pending" | "active" | "paused" | "finished";
+
+export interface GymClassWorkoutExercise {
+  id: number;
+  block_id: number;
+  exercise_id: number;
+  exercise?: Exercise;
+  exercise_name?: string | null;
+  order: number;
+  target_sets: number | null;
+  target_reps: number | null;
+  target_weight_kg: number | null;
+  target_distance_m: number | null;
+  target_duration_sec: number | null;
+  notes: string | null;
+}
+
+export interface GymClassWorkoutBlock {
+  id: number;
+  workout_id: number;
+  order: number;
+  name: string;
+  block_type: GymClassBlockType;
+  duration_sec: number | null;
+  rounds: number | null;
+  work_sec: number | null;
+  rest_sec: number | null;
+  exercises: GymClassWorkoutExercise[];
+}
+
+export interface GymClassWorkout {
+  id: number;
+  gym_id: number;
+  name: string;
+  description: string | null;
+  created_by: number;
+  created_at: string;
+  blocks: GymClassWorkoutBlock[];
+}
+
+export interface ClassLiveState {
+  schedule_id: number;
+  live_status: GymClassLiveStatus;
+  live_block_index: number;
+  total_blocks: number;
+  elapsed_sec: number;
+  remaining_sec: number | null;
+  current_block: GymClassWorkoutBlock | null;
+  workout_id: number | null;
+  workout_name: string | null;
+}
+
+export interface GymSchedule {
+  id: number;
+  template_id: number;
+  location_id: number;
+  starts_at: string;
+  ends_at: string;
+  override_capacity: number | null;
+  is_cancelled: boolean;
+  template_name: string | null;
+  location_name: string | null;
+  gym_name: string | null;
+  gym_id: number | null;
+  booked_count: number;
+  effective_capacity: number;
+  tickets_cost: number;
+  user_booking_status: GymBookingStatus | null;
+  user_on_waitlist: boolean;
+  user_waitlist_position: number | null;
+  waitlist_count: number;
+  workout_id: number | null;
+  live_status: GymClassLiveStatus;
+}
+
+export interface GymBooking {
+  id: number;
+  schedule_id: number;
+  user_id: number;
+  status: GymBookingStatus;
+  tickets_used: number;
+  checked_in_at: string | null;
+  cancelled_at: string | null;
+  created_at: string;
+}
+
+export interface GymAnalytics {
+  total_members: number;
+  active_members: number;
+  total_classes_this_month: number;
+  avg_attendance_rate: number;
+  revenue_xp_this_month: number;
+}
+
+export interface WeeklySlot {
+  id: number;
+  gym_id: number;
+  day_of_week: number; // 0=Monday, 6=Sunday
+  start_time: string;  // "HH:MM"
+  end_time: string;
+  name: string;
+  capacity: number;
+  cost: number;
+}
+
 // === Dashboard ===
 
 export interface DashboardSummary {
@@ -743,4 +859,67 @@ export interface DashboardSummary {
     achieved_at: string;
   }[];
   streak: number;
+}
+
+// === Plan ===
+
+export interface PlanWorkout {
+  id: number;
+  plan_id: number;
+  template_id: number;
+  order: number;
+  day: number | null;
+  notes: string | null;
+  template?: WorkoutTemplate;
+}
+
+export interface Plan {
+  id: number;
+  name: string;
+  description: string | null;
+  created_by: number;
+  is_public: boolean;
+  created_at: string;
+  workouts: PlanWorkout[];
+  subscription_id: number | null;
+}
+
+export interface PlanSubscriber {
+  subscription_id: number;
+  athlete_id: number;
+  athlete_name: string;
+  athlete_email: string;
+  subscribed_at: string;
+}
+
+export interface CoachMessage {
+  id: number;
+  session_id: number | null;
+  athlete_id: number;
+  athlete_name: string;
+  coach_id: number;
+  body: string;
+  sent_at: string;
+  read_at: string | null;
+}
+
+export type ChallengeStatus = "pending" | "accepted" | "declined" | "cancelled" | "completed";
+
+export interface ChallengeUser {
+  id: number;
+  name: string;
+}
+
+export interface Challenge {
+  id: number;
+  challenger: ChallengeUser;
+  challenged: ChallengeUser;
+  wager_xp: number;
+  status: ChallengeStatus;
+  challenger_session_id: number | null;
+  challenged_session_id: number | null;
+  winner_id: number | null;
+  created_at: string;
+  expires_at: string;
+  completed_at: string | null;
 }

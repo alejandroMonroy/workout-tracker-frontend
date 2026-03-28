@@ -2,8 +2,18 @@ import AppLayout from "@/components/AppLayout";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { AuthProvider } from "@/hooks/useAuth";
 import AthletesPage from "@/pages/AthletesPage";
+import AthletePlansPage from "@/pages/AthletePlansPage";
+import CoachPage from "@/pages/CoachPage";
+import ChallengesPage from "@/pages/ChallengesPage";
+import PlansPage from "@/pages/PlansPage";
+import TemplatesPage from "@/pages/TemplatesPage";
+import ClassLiveAthletePage from "@/pages/ClassLiveAthletePage";
 import DashboardPage from "@/pages/DashboardPage";
 import DivisionsPage from "@/pages/DivisionsPage";
+import GymClassLivePage from "@/pages/GymClassLivePage";
+import GymDashboardPage from "@/pages/GymDashboardPage";
+import GymDirectoryPage from "@/pages/GymDirectoryPage";
+import ShopPage from "@/pages/ShopPage";
 import LoginPage from "@/pages/LoginPage";
 import ProfilePage from "@/pages/ProfilePage";
 import RegisterPage from "@/pages/RegisterPage";
@@ -22,11 +32,32 @@ export default function App() {
           {/* Protected */}
           <Route element={<ProtectedRoute />}>
             <Route element={<AppLayout />}>
+              {/* Athlete routes */}
               <Route path="/" element={<DashboardPage />} />
+              <Route path="/coach/workouts" element={<TemplatesPage />} />
+              <Route path="/coach/plans" element={<PlansPage />} />
+              <Route path="/coach/athletes" element={<CoachPage tab="athletes" />} />
+              <Route path="/coach/inbox" element={<CoachPage tab="inbox" />} />
+              <Route path="/coach/stats" element={<CoachPage tab="stats" />} />
+              <Route path="/challenges" element={<ChallengesPage />} />
               <Route path="/divisions" element={<DivisionsPage />} />
               <Route path="/athletes" element={<AthletesPage />} />
+              <Route path="/plans" element={<AthletePlansPage />} />
+              <Route path="/gyms" element={<GymDirectoryPage />} />
               <Route path="/sessions/:id" element={<SessionDetailPage />} />
               <Route path="/profile" element={<ProfilePage />} />
+              <Route path="/shop" element={<ShopPage />} />
+              {/* Live class – athlete view */}
+              <Route path="/class/:schedId" element={<ClassLiveAthletePage />} />
+              {/* Gym owner routes */}
+              <Route path="/gym/dashboard" element={<GymDashboardPage />} />
+              <Route path="/gym/schedule" element={<GymDashboardPage />} />
+              <Route path="/gym/members" element={<GymDashboardPage />} />
+              <Route path="/gym/analytics" element={<GymDashboardPage />} />
+              <Route path="/gym/workouts" element={<GymDashboardPage />} />
+              <Route path="/gym/marketplace" element={<GymDashboardPage />} />
+              {/* Live class – owner control */}
+              <Route path="/gym/live/:schedId" element={<GymClassLivePage />} />
             </Route>
           </Route>
         </Routes>

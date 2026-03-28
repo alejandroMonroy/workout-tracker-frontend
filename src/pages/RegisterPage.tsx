@@ -119,8 +119,8 @@ export default function RegisterPage() {
           {/* Role */}
           <div className="space-y-1.5">
             <label className="text-sm font-medium">Tipo de cuenta</label>
-            <div className="grid grid-cols-2 gap-3">
-              {(["athlete", "coach"] as const).map((r) => (
+            <div className="grid grid-cols-3 gap-3">
+              {(["athlete", "coach", "gym"] as const).map((r) => (
                 <button
                   key={r}
                   type="button"
@@ -131,7 +131,7 @@ export default function RegisterPage() {
                       : "border-border text-muted-foreground hover:bg-secondary"
                   }`}
                 >
-                  {r === "athlete" ? "🏋️ Atleta" : "📋 Coach"}
+                  {r === "athlete" ? "🏋️ Atleta" : r === "coach" ? "📋 Coach" : "🏢 Gimnasio"}
                 </button>
               ))}
             </div>

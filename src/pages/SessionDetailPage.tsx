@@ -2,21 +2,23 @@ import WodRunner from "@/components/WodRunner";
 import { useTimer, type TimerMode } from "@/hooks/useTimer";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
-import type { Exercise, WorkoutSession, WorkoutTemplate } from "@/types/api";
+import type { CoachMessage, Exercise, WorkoutSession, WorkoutTemplate } from "@/types/api";
 import {
   CheckCircle,
   Loader2,
+  MessageSquare,
   Pause,
   Play,
   Plus,
   RotateCcw,
   Search,
+  Send,
   Timer,
   Trash2,
   Volume2,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 
 interface SetForm {
   exercise_id: number;
@@ -44,11 +46,18 @@ const TIMER_MODES: { value: TimerMode; label: string }[] = [
 export default function SessionDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const [session, setSession] = useState<WorkoutSession | null>(null);
   const [template, setTemplate] = useState<WorkoutTemplate | null>(null);
   const [loading, setLoading] = useState(true);
   const [finishing, setFinishing] = useState(false);
   const initRef = useRef(false);
+
+  // Coach message
+  const [hasCoach, setHasCoach] = useState(false);
+  const [messageBody, setMessageBody] = useState("");
+  const [sendingMessage, setSendingMessage] = useState(false);
+  const [sentMessage, setSentMessage] = useState<CoachMessage | null>(null);
 
   // Timer panel
   const [showTimer, setShowTimer] = useState(false);
@@ -128,12 +137,19 @@ export default function SessionDetailPage() {
       try {
         const s = await api.get<WorkoutSession>(`/api/sessions/${id}`);
         setSession(s);
-        if (s.template_id) {
+        if (location.state?.template) {
+          setTemplate(location.state.template);
+        } else if (s.template_id) {
           try {
             const t = await api.get<WorkoutTemplate>(`/api/templates/${s.template_id}`);
             setTemplate(t);
           } catch { /* ignore */ }
         }
+        // Check if athlete has a coach
+        try {
+          const subs = await api.get<{ coach_id: number }[]>("/api/coaches/subscriptions");
+          setHasCoach(subs.length > 0);
+        } catch { /* ignore */ }
       } catch {
         navigate("/profile");
       } finally {
@@ -205,6 +221,17 @@ export default function SessionDetailPage() {
     } catch {
       setFinishing(false);
     }
+  };
+
+  const sendMessageToCoach = async () => {
+    if (!messageBody.trim()) return;
+    setSendingMessage(true);
+    try {
+      const msg = await api.post<CoachMessage>(`/api/sessions/${id}/message`, { body: messageBody });
+      setSentMessage(msg);
+      setMessageBody("");
+    } catch { /* ignore */ }
+    setSendingMessage(false);
   };
 
   if (loading) {
@@ -490,6 +517,43 @@ export default function SessionDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Message to coach — shown on finished sessions if athlete has a coach */}
+      {!isActive && hasCoach && (
+        <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+          <h2 className="mb-3 flex items-center gap-2 font-semibold">
+            <MessageSquare className="h-4 w-4 text-primary" />
+            Mensaje a tu entrenador
+          </h2>
+          {sentMessage ? (
+            <div className="rounded-md bg-accent/10 px-4 py-3 text-sm text-accent">
+              Mensaje enviado correctamente.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <textarea
+                rows={3}
+                placeholder="Cuéntale a tu entrenador cómo fue el entrenamiento..."
+                value={messageBody}
+                onChange={(e) => setMessageBody(e.target.value)}
+                className="w-full rounded-md border border-border px-3 py-2 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none"
+              />
+              <button
+                onClick={sendMessageToCoach}
+                disabled={sendingMessage || !messageBody.trim()}
+                className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              >
+                {sendingMessage ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+                Enviar
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

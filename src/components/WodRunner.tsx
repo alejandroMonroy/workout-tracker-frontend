@@ -1,7 +1,7 @@
 import { useTimer, type TimerMode } from "@/hooks/useTimer";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
-import type { BlockExercise, SessionBlock, WorkoutModality, WorkoutTemplate } from "@/types/api";
+import type { TemplateBlock, WorkoutModality, WorkoutTemplate } from "@/types/api";
 import {
     Flag,
     Pause,
@@ -14,9 +14,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 /* ────────── Props ────────── */
 
 interface WodRunnerProps {
-  template?: WorkoutTemplate;
-  /** Run a single WOD-type block from a PlanSession */
-  block?: SessionBlock;
+  template: WorkoutTemplate;
   sessionId: number;
   onFinish: () => void;
 }
@@ -30,50 +28,20 @@ interface NormalisedConfig {
   time_cap_sec: number | null;
   work_sec: number | null;
   rest_sec: number | null;
-  exercises: BlockExercise[];
+  exercises: TemplateBlock[];
 }
 
-function normalise(
-  template?: WorkoutTemplate,
-  block?: SessionBlock,
-): NormalisedConfig {
-  if (block) {
-    return {
-      name: block.name,
-      description: null,
-      modality: block.modality ?? "custom",
-      rounds: block.rounds,
-      time_cap_sec: block.time_cap_sec,
-      work_sec: block.work_sec,
-      rest_sec: block.rest_sec,
-      exercises: block.exercises,
-    };
-  }
-  if (template) {
-    return {
-      name: template.name,
-      description: template.description,
-      modality: template.modality,
-      rounds: template.rounds,
-      time_cap_sec: template.time_cap_sec,
-      work_sec: null,
-      rest_sec: null,
-      exercises: template.blocks.map((b) => ({
-        id: b.id,
-        exercise_id: b.exercise_id,
-        exercise: b.exercise,
-        order: b.order,
-        target_sets: b.target_sets,
-        target_reps: b.target_reps,
-        target_weight_kg: b.target_weight_kg,
-        target_distance_m: b.target_distance_m,
-        target_duration_sec: b.target_duration_sec,
-        rest_sec: b.rest_sec,
-        notes: b.notes,
-      })),
-    };
-  }
-  throw new Error("WodRunner requires either template or block");
+function normalise(template: WorkoutTemplate): NormalisedConfig {
+  return {
+    name: template.name,
+    description: template.description,
+    modality: template.modality,
+    rounds: template.rounds,
+    time_cap_sec: template.time_cap_sec,
+    work_sec: null,
+    rest_sec: null,
+    exercises: template.blocks,
+  };
 }
 
 /* ────────── Helpers ────────── */
@@ -132,11 +100,10 @@ type Phase = "ready" | "countdown" | "running" | "completed";
 
 export default function WodRunner({
   template,
-  block,
   sessionId,
   onFinish,
 }: WodRunnerProps) {
-  const cfg = normalise(template, block);
+  const cfg = normalise(template);
   const exercises = cfg.exercises;
   const totalExercises = exercises.length;
   const totalRounds = cfg.rounds ?? 1;

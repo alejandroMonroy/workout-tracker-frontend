@@ -1,7 +1,7 @@
 import { useAuth } from "@/hooks/useAuth";
 import { formatDate, formatDuration } from "@/lib/utils";
 import { api } from "@/services/api";
-import type { DashboardSummary } from "@/types/api";
+import type { DashboardSummary, GymSchedule } from "@/types/api";
 import {
     Activity,
     ChevronLeft,
@@ -75,6 +75,7 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [data, setData] = useState<DashboardSummary | null>(null);
+  const [gymBookings, setGymBookings] = useState<GymSchedule[]>([]);
   const [loading, setLoading] = useState(true);
   const [calMonth, setCalMonth] = useState(() => {
     const n = new Date();
@@ -82,10 +83,13 @@ export default function DashboardPage() {
   });
 
   useEffect(() => {
-    api.get<DashboardSummary>("/api/dashboard/summary")
-      .then(setData)
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    Promise.all([
+      api.get<DashboardSummary>("/api/dashboard/summary"),
+      api.get<GymSchedule[]>("/api/gyms/schedules/mine").catch(() => [] as GymSchedule[]),
+    ]).then(([summary, bookings]) => {
+      setData(summary);
+      setGymBookings(bookings);
+    }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   /* Calendar grid */
@@ -110,6 +114,14 @@ export default function DashboardPage() {
     if (!data) return new Set<string>();
     return new Set(data.session_dates.map((d) => d.date));
   }, [data]);
+
+  /* Gym booking dates set */
+  const gymBookingDateSet = useMemo(() => {
+    return new Set(gymBookings.map((b) => {
+      const d = new Date(b.starts_at);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    }));
+  }, [gymBookings]);
 
   const today = new Date();
 
@@ -218,12 +230,13 @@ export default function DashboardPage() {
             const isPast = !isToday && day < today;
             const dayStr = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`;
             const hasSession = sessionDateSet.has(dayStr);
+            const hasGymBooking = gymBookingDateSet.has(dayStr);
 
             return (
               <div
                 key={i}
                 className={`relative flex flex-col items-center justify-start rounded-lg p-1 min-h-[48px] transition-colors ${
-                  isToday ? "bg-primary/5" : hasSession && isCurrentMonth ? "bg-secondary/40" : ""
+                  isToday ? "bg-primary/5" : (hasSession || hasGymBooking) && isCurrentMonth ? "bg-secondary/40" : ""
                 } ${!isCurrentMonth ? "opacity-20" : isPast ? "opacity-40" : ""}`}
               >
                 <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium ${
@@ -235,9 +248,10 @@ export default function DashboardPage() {
                 }`}>
                   {day.getDate()}
                 </span>
-                {hasSession && (
+                {(hasSession || hasGymBooking) && (
                   <div className="mt-auto flex items-center justify-center gap-[3px] pb-0.5">
-                    <span className="h-[5px] w-[5px] rounded-full bg-primary" title="Entrenamiento" />
+                    {hasSession && <span className="h-[5px] w-[5px] rounded-full bg-primary" title="Entrenamiento" />}
+                    {hasGymBooking && <span className="h-[5px] w-[5px] rounded-full bg-green-500" title="Clase en gimnasio" />}
                   </div>
                 )}
               </div>
@@ -247,6 +261,7 @@ export default function DashboardPage() {
         {/* Legend */}
         <div className="flex flex-wrap items-center justify-center gap-4 mt-4 pt-3 text-[10px] text-muted-foreground">
           <span className="flex items-center gap-1.5"><span className="h-[6px] w-[6px] rounded-full bg-primary" /> Entreno</span>
+          <span className="flex items-center gap-1.5"><span className="h-[6px] w-[6px] rounded-full bg-green-500" /> Clase gym</span>
         </div>
       </div>
 
