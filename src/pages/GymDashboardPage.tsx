@@ -23,6 +23,8 @@ import {
   CalendarPlus,
   ChevronDown,
   ChevronRight,
+  Clipboard,
+  Copy,
   Dumbbell,
   Edit2,
   Loader2,
@@ -190,6 +192,7 @@ export default function GymDashboardPage() {
   const [slotMode, setSlotMode] = useState<"manual" | "template">("manual");
   const [slotTemplateId, setSlotTemplateId] = useState(0);
   const [slotForm, setSlotForm] = useState({ start_time: "", end_time: "", name: "", capacity: "", cost: "" });
+  const [copySourceDay, setCopySourceDay] = useState<number | null>(null);
 
   const [products, setProducts] = useState<GymProduct[]>([]);
   const [productsLoaded, setProductsLoaded] = useState(false);
@@ -522,6 +525,23 @@ export default function GymDashboardPage() {
   const handleDeleteSlot = async (slotId: number) => {
     await api.delete(`/api/gyms/mine/weekly-slots/${slotId}`);
     load();
+  };
+
+  const handlePasteDay = async (targetDay: number) => {
+    if (copySourceDay === null) return;
+    setSaving(true);
+    try {
+      await api.post("/api/gyms/mine/weekly-slots/copy-day", {
+        source_day: copySourceDay,
+        target_day: targetDay,
+      });
+      setCopySourceDay(null);
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error al copiar");
+    } finally {
+      setSaving(false);
+    }
   };
 
   // ── Workouts state ──────────────────────────────────────────────────────────
@@ -1144,21 +1164,61 @@ export default function GymDashboardPage() {
                   Configura los días y horarios de clases semanales recurrentes.
                 </p>
 
+                {/* Copy mode banner */}
+                {copySourceDay !== null && (
+                  <div className="flex items-center gap-2 rounded-lg bg-primary/10 border border-primary/30 px-3 py-2 text-sm">
+                    <Clipboard className="h-4 w-4 text-primary shrink-0" />
+                    <span className="text-primary font-medium">
+                      Copiando {DAY_LABELS[copySourceDay]} — selecciona el día destino
+                    </span>
+                    <button
+                      onClick={() => setCopySourceDay(null)}
+                      className="ml-auto text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
+
                 {/* Weekly grid */}
                 <div className="grid grid-cols-7 gap-2">
                   {DAY_LABELS.map((dayLabel, dayIndex) => {
                     const daySlots = weeklySlots.filter((s) => s.day_of_week === dayIndex);
                     const rows = groupOverlapping(daySlots);
+                    const isSource = copySourceDay === dayIndex;
+                    const isPasteTarget = copySourceDay !== null && !isSource;
                     return (
-                      <div key={dayIndex} className="rounded-xl border border-border bg-white min-w-0">
+                      <div
+                        key={dayIndex}
+                        className={`rounded-xl border min-w-0 ${isSource ? "border-primary bg-primary/5" : isPasteTarget ? "border-primary/40 bg-white cursor-pointer hover:border-primary hover:bg-primary/5" : "border-border bg-white"}`}
+                        onClick={isPasteTarget ? () => handlePasteDay(dayIndex) : undefined}
+                        title={isPasteTarget ? `Pegar en ${dayLabel}` : undefined}
+                      >
                         <div className="border-b border-border px-2 py-1.5 flex items-center justify-between gap-1">
                           <span className="text-xs font-semibold text-foreground truncate">{dayLabel}</span>
-                          <button
-                            onClick={() => openSlotForm(dayIndex)}
-                            className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-primary hover:bg-primary/10"
-                          >
-                            <Plus className="h-3.5 w-3.5" />
-                          </button>
+                          <div className="flex items-center gap-0.5 shrink-0">
+                            {isPasteTarget ? (
+                              <Clipboard className="h-3.5 w-3.5 text-primary" />
+                            ) : (
+                              <>
+                                {daySlots.length > 0 && (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); setCopySourceDay(isSource ? null : dayIndex); }}
+                                    className={`rounded p-0.5 ${isSource ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-primary hover:bg-primary/10"}`}
+                                    title={isSource ? "Cancelar copia" : "Copiar día"}
+                                  >
+                                    <Copy className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => openSlotForm(dayIndex)}
+                                  className="rounded p-0.5 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                                >
+                                  <Plus className="h-3.5 w-3.5" />
+                                </button>
+                              </>
+                            )}
+                          </div>
                         </div>
                         <div className="p-1.5 space-y-1 min-h-[56px]">
                           {daySlots.length === 0 && (
@@ -1174,7 +1234,7 @@ export default function GymDashboardPage() {
                                   <div className="flex items-start justify-between gap-0.5">
                                     <p className="text-[10px] font-semibold text-foreground leading-tight truncate">{slot.name}</p>
                                     <button
-                                      onClick={() => handleDeleteSlot(slot.id)}
+                                      onClick={(e) => { e.stopPropagation(); handleDeleteSlot(slot.id); }}
                                       className="shrink-0 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive"
                                     >
                                       <X className="h-3 w-3" />
