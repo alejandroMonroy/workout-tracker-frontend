@@ -74,8 +74,7 @@ export default function TemplatesPage() {
   // Exercise search state (per template)
   const [addingExTo, setAddingExTo] = useState<number | null>(null);
   const [exSearch, setExSearch] = useState("");
-  const [exercises, setExercises] = useState<Exercise[]>([]);
-  const [exResults, setExResults] = useState<Exercise[]>([]);
+const [exResults, setExResults] = useState<Exercise[]>([]);
   const [pickedEx, setPickedEx] = useState<Exercise | null>(null);
   const [exForm, setExForm] = useState(emptyExForm());
   const [savingEx, setSavingEx] = useState(false);
@@ -89,32 +88,21 @@ export default function TemplatesPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  // Lazy-load exercises once
-  const ensureExercises = async () => {
-    if (exercises.length > 0) return;
-    const data = await api.get<Exercise[]>("/api/exercises").catch(() => []);
-    setExercises(data);
-  };
-
   const handleSearch = async (q: string) => {
     setExSearch(q);
     setPickedEx(null);
     if (!q.trim()) { setExResults([]); return; }
-    await ensureExercises();
-    setExResults(
-      exercises.filter((e) =>
-        e.name.toLowerCase().includes(q.toLowerCase()),
-      ).slice(0, 8),
-    );
+    const params = new URLSearchParams({ search: q.trim(), limit: "8" });
+    const data = await api.get<Exercise[]>(`/api/exercises?${params}`).catch(() => []);
+    setExResults(data);
   };
 
-  const openAddEx = async (templateId: number) => {
+  const openAddEx = (templateId: number) => {
     setAddingExTo(templateId);
     setExSearch("");
     setExResults([]);
     setPickedEx(null);
     setExForm(emptyExForm());
-    await ensureExercises();
   };
 
   const handleCreate = async () => {

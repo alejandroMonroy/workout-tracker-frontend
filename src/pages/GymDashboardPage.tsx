@@ -562,7 +562,7 @@ export default function GymDashboardPage() {
   });
 
   const [addingExToBlock, setAddingExToBlock] = useState<number | null>(null);
-  const [exercises, setExercises] = useState<Exercise[]>([]);
+  const [exResults, setExResults] = useState<Exercise[]>([]);
   const [exSearch, setExSearch] = useState("");
   const [exForm, setExForm] = useState({
     exercise_id: 0,
@@ -590,10 +590,11 @@ export default function GymDashboardPage() {
     if (fresh) setEditingWod(fresh);
   };
 
-  const loadExercises = async () => {
-    if (exercises.length > 0) return;
-    const exs = await api.get<Exercise[]>("/api/exercises").catch(() => []);
-    setExercises(exs);
+  const searchExercises = async (q: string) => {
+    if (!q.trim()) { setExResults([]); return; }
+    const params = new URLSearchParams({ search: q.trim(), limit: "7" });
+    const exs = await api.get<Exercise[]>(`/api/exercises?${params}`).catch(() => []);
+    setExResults(exs);
   };
 
   const handleCreateWorkout = async () => {
@@ -605,7 +606,6 @@ export default function GymDashboardPage() {
       setWodForm({ name: "", description: "" });
       setShowWodForm(false);
       setEditingWod(wod);
-      loadExercises();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error");
     } finally {
@@ -1484,7 +1484,7 @@ export default function GymDashboardPage() {
                                     placeholder="Buscar ejercicio…"
                                     value={exSearch}
                                     autoFocus
-                                    onChange={(e) => setExSearch(e.target.value)}
+                                    onChange={(e) => { setExSearch(e.target.value); searchExercises(e.target.value); }}
                                     className="flex-1 rounded-md border border-border px-2 py-1.5 text-sm focus:border-primary focus:outline-none"
                                   />
                                   <button
@@ -1497,10 +1497,7 @@ export default function GymDashboardPage() {
                                 {exSearch.trim().length > 0 && (
                                   <div className="rounded-md border border-border overflow-hidden">
                                     {(() => {
-                                      const matches = exercises.filter((e) =>
-                                        e.name.toLowerCase().includes(exSearch.toLowerCase())
-                                      ).slice(0, 7);
-                                      return matches.length > 0 ? matches.map((ex) => (
+                                      return exResults.length > 0 ? exResults.map((ex) => (
                                         <button
                                           key={ex.id}
                                           type="button"
@@ -1718,7 +1715,7 @@ export default function GymDashboardPage() {
                         className="rounded-xl border border-border bg-white flex items-center gap-3 px-4 py-3 hover:border-primary/40 transition-colors group"
                       >
                         <button
-                          onClick={() => { setEditingWod(wod); loadExercises(); setAddingBlock(false); setAddingExToBlock(null); }}
+                          onClick={() => { setEditingWod(wod); setAddingBlock(false); setAddingExToBlock(null); }}
                           className="flex-1 text-left"
                         >
                           <p className="font-semibold text-sm text-foreground group-hover:text-primary">{wod.name}</p>
