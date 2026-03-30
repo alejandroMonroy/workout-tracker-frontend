@@ -5,6 +5,8 @@ import AthletesPage from "@/pages/AthletesPage";
 import AthletePlansPage from "@/pages/AthletePlansPage";
 import CoachPage from "@/pages/CoachPage";
 import ChallengesPage from "@/pages/ChallengesPage";
+import CompetitionsPage from "@/pages/CompetitionsPage";
+import CompetitionDetailPage from "@/pages/CompetitionDetailPage";
 import PlansPage from "@/pages/PlansPage";
 import TemplatesPage from "@/pages/TemplatesPage";
 import ClassLiveAthletePage from "@/pages/ClassLiveAthletePage";
@@ -40,6 +42,8 @@ export default function App() {
               <Route path="/coach/inbox" element={<CoachPage tab="inbox" />} />
               <Route path="/coach/stats" element={<CoachPage tab="stats" />} />
               <Route path="/challenges" element={<ChallengesPage />} />
+              <Route path="/competitions" element={<CompetitionsPage />} />
+              <Route path="/competitions/:id" element={<CompetitionDetailPage />} />
               <Route path="/divisions" element={<DivisionsPage />} />
               <Route path="/athletes" element={<AthletesPage />} />
               <Route path="/plans" element={<AthletePlansPage />} />

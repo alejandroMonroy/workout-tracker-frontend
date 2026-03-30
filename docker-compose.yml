@@ -6,3 +6,5 @@ services:
       - "3000:80"
     environment:
       - BACKEND_URL=${BACKEND_URL:-http://host.docker.internal:8000}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

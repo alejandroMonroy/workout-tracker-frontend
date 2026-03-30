@@ -903,6 +903,61 @@ export interface CoachMessage {
   read_at: string | null;
 }
 
+// === Competition ===
+
+export interface CompetitionPlace {
+  id: number;
+  name: string;
+}
+
+export interface CompetitionWorkout {
+  id: number;
+  template_id: number;
+  template_name: string;
+  init_time: string;
+  order: number;
+  notes: string | null;
+  places: CompetitionPlace[];
+}
+
+export interface Competition {
+  id: number;
+  name: string;
+  description: string | null;
+  created_by: number;
+  creator_name: string;
+  location: string;
+  init_date: string;
+  end_date: string;
+  inscription_xp_cost: number;
+  subscriber_count: number;
+  is_subscribed: boolean;
+  created_at: string;
+  places: CompetitionPlace[];
+  workouts: CompetitionWorkout[];
+}
+
+export interface CompetitionLeaderboardEntry {
+  rank: number;
+  athlete_id: number;
+  athlete_name: string;
+  total_xp: number;
+  workouts_completed: number;
+}
+
+export type CompetitionResultStatus = "pending" | "validated" | "rejected";
+
+export interface WorkoutResultEntry {
+  id: number;
+  position: number | null;
+  athlete_id: number;
+  athlete_name: string;
+  finished_at: string;
+  status: CompetitionResultStatus;
+  xp_awarded: number;
+  session_id: number;
+}
+
 export type ChallengeStatus = "pending" | "accepted" | "declined" | "cancelled" | "completed";
 
 export interface ChallengeUser {

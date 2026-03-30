@@ -1,6 +1,6 @@
 import { formatDate } from "@/lib/utils";
 import { api } from "@/services/api";
-import type { AthletePublic, Challenge } from "@/types/api";
+import type { AthletePublic, Challenge, SessionListItem } from "@/types/api";
 import { useAuth } from "@/hooks/useAuth";
 import {
   CheckCircle,
@@ -52,8 +52,17 @@ function CreateChallengeDialog({
   const [athletes, setAthletes] = useState<AthletePublic[]>([]);
   const [selectedOpponent, setSelectedOpponent] = useState<AthletePublic | null>(null);
   const [wager, setWager] = useState(100);
+  const [sessions, setSessions] = useState<SessionListItem[]>([]);
+  const [selectedSessionId, setSelectedSessionId] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api
+      .get<SessionListItem[]>("/api/sessions?limit=50")
+      .then((all) => setSessions(all.filter((s) => s.finished_at !== null)))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (search.trim().length < 2) {
@@ -70,13 +79,14 @@ function CreateChallengeDialog({
   }, [search]);
 
   const handleCreate = async () => {
-    if (!selectedOpponent) return;
+    if (!selectedOpponent || !selectedSessionId) return;
     setSubmitting(true);
     setError(null);
     try {
       const c = await api.post<Challenge>("/api/challenges", {
         challenged_id: selectedOpponent.id,
         wager_xp: wager,
+        session_id: selectedSessionId,
       });
       onCreated(c);
     } catch (e: unknown) {
@@ -151,6 +161,32 @@ function CreateChallengeDialog({
                 El ganador se lleva {wager * 2} XP en total
               </p>
             </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium">Sesión a presentar</label>
+              {sessions.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No tienes sesiones completadas para presentar.
+                </p>
+              ) : (
+                <div className="max-h-48 overflow-y-auto rounded-md border border-border">
+                  {sessions.map((s) => (
+                    <button
+                      key={s.id}
+                      onClick={() => setSelectedSessionId(s.id)}
+                      className={`flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-secondary ${
+                        selectedSessionId === s.id ? "bg-primary/10 font-medium" : ""
+                      }`}
+                    >
+                      <span>#{s.id} — {formatDate(s.started_at)}</span>
+                      <span className="ml-auto text-xs text-muted-foreground">
+                        {s.set_count} series · {s.exercise_count} ejercicios
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -169,7 +205,7 @@ function CreateChallengeDialog({
           </button>
           <button
             onClick={handleCreate}
-            disabled={!selectedOpponent || submitting}
+            disabled={!selectedOpponent || !selectedSessionId || submitting}
             className="flex-1 rounded-md bg-primary py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
             {submitting ? "Enviando..." : "Desafiar"}
