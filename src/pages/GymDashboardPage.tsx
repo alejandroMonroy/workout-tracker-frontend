@@ -85,6 +85,7 @@ export default function GymDashboardPage() {
   const [templates, setTemplates] = useState<GymClassTemplate[]>([]);
   const [schedules, setSchedules] = useState<GymSchedule[]>([]);
   const [members, setMembers] = useState<GymMember[]>([]);
+  const [selectedLocId, setSelectedLocId] = useState<number | null>(null);
   const [expandedUserIds, setExpandedUserIds] = useState<Set<number>>(new Set());
   const [memberSearch, setMemberSearch] = useState("");
   const [ticketHistories, setTicketHistories] = useState<Record<number, GymTicketPurchase[]>>({});
@@ -103,7 +104,9 @@ export default function GymDashboardPage() {
     if (!(userId in ticketHistories)) {
       setLoadingTickets((prev) => new Set(prev).add(userId));
       try {
-        const purchases = await api.get<GymTicketPurchase[]>(`/api/gyms/mine/members/${userId}/ticket-purchases`).catch(() => []);
+        const purchases = selectedLocId
+          ? await api.get<GymTicketPurchase[]>(`/api/gyms/mine/locations/${selectedLocId}/members/${userId}/ticket-purchases`).catch(() => [])
+          : [];
         setTicketHistories((prev) => ({ ...prev, [userId]: purchases }));
       } finally {
         setLoadingTickets((prev) => { const next = new Set(prev); next.delete(userId); return next; });
@@ -112,10 +115,11 @@ export default function GymDashboardPage() {
   };
 
   const handleOwnerCancelMembership = async (membershipId: number) => {
+    if (!selectedLocId) return;
     setCancellingId(membershipId);
     try {
-      await api.post(`/api/gyms/mine/members/${membershipId}/cancel`, {});
-      const ms = await api.get<GymMember[]>("/api/gyms/mine/members").catch(() => [] as GymMember[]);
+      await api.post(`/api/gyms/mine/locations/${selectedLocId}/members/${membershipId}/cancel`, {});
+      const ms = await api.get<GymMember[]>(`/api/gyms/mine/locations/${selectedLocId}/members`).catch(() => [] as GymMember[]);
       setMembers(ms);
     } finally {
       setCancellingId(null);
@@ -124,18 +128,8 @@ export default function GymDashboardPage() {
   };
 
   // Forms
-  const [showGymForm, setShowGymForm] = useState(false);
-  const [gymForm, setGymForm] = useState({
-    name: "",
-    description: "",
-    phone: "",
-    website: "",
-    cancellation_hours: 2,
-    free_trial_enabled: true,
-  });
-
   const [showLocForm, setShowLocForm] = useState(false);
-  const [locForm, setLocForm] = useState({ name: "", address: "", city: "", capacity: 20 });
+  const [locForm, setLocForm] = useState({ name: "", address: "", city: "", capacity: 20, cancellation_hours: 2 });
 
   const [showPlanForm, setShowPlanForm] = useState(false);
   const [planForm, setPlanForm] = useState({
@@ -164,7 +158,7 @@ export default function GymDashboardPage() {
   });
 
   const [editingLocId, setEditingLocId] = useState<number | null>(null);
-  const [editLocForm, setEditLocForm] = useState({ name: "", address: "", city: "", capacity: 20 });
+  const [editLocForm, setEditLocForm] = useState({ name: "", address: "", city: "", capacity: 20, cancellation_hours: 2 });
 
   const [editingPlanId, setEditingPlanId] = useState<number | null>(null);
   const [editPlanForm, setEditPlanForm] = useState({
@@ -208,41 +202,38 @@ export default function GymDashboardPage() {
     is_active: true,
   });
 
+  const loadLocationData = async (locId: number) => {
+    const [ps, tms, ms, scheds] = await Promise.all([
+      api.get<GymPlan[]>(`/api/gyms/mine/locations/${locId}/plans`).catch(() => []),
+      api.get<GymClassTemplate[]>(`/api/gyms/mine/locations/${locId}/templates`).catch(() => []),
+      api.get<GymMember[]>(`/api/gyms/mine/locations/${locId}/members`).catch(() => []),
+      api.get<GymSchedule[]>(`/api/gyms/mine/locations/${locId}/schedules`).catch(() => []),
+    ]);
+    setPlans(ps);
+    setTemplates(tms);
+    setMembers(ms);
+    setSchedules(scheds);
+  };
+
   const load = async () => {
     setLoading(true);
     try {
-      const [g, locs, ps, tms, ms, slots] = await Promise.all([
+      const [g, locs, slots] = await Promise.all([
         api.get<GymPublic>("/api/gyms/mine").catch(() => null),
         api.get<GymLocation[]>("/api/gyms/mine/locations").catch(() => []),
-        api.get<GymPlan[]>("/api/gyms/mine/plans").catch(() => []),
-        api.get<GymClassTemplate[]>("/api/gyms/mine/templates").catch(() => []),
-        api.get<GymMember[]>("/api/gyms/mine/members").catch(() => []),
         api.get<WeeklySlot[]>("/api/gyms/mine/weekly-slots").catch(() => []),
       ]);
       setGym(g);
       setLocations(locs);
-      setPlans(ps);
-      setTemplates(tms);
-      setMembers(ms);
       setWeeklySlots(slots);
 
+      if (locs.length > 0) {
+        setSelectedLocId((prev) => prev ?? locs[0].id);
+      }
+
       if (g) {
-        const [scheds, anl] = await Promise.all([
-          api.get<GymSchedule[]>("/api/gyms/mine/schedules").catch(() => []),
-          api.get<GymAnalytics>("/api/gyms/mine/analytics").catch(() => null),
-        ]);
-        setSchedules(scheds);
+        const anl = await api.get<GymAnalytics>("/api/gyms/mine/analytics").catch(() => null);
         setAnalytics(anl);
-        setGymForm({
-          name: g.name,
-          description: g.description ?? "",
-          phone: g.phone ?? "",
-          website: g.website ?? "",
-          cancellation_hours: g.cancellation_hours,
-          free_trial_enabled: g.free_trial_enabled,
-        });
-      } else {
-        setShowGymForm(true);
       }
     } finally {
       setLoading(false);
@@ -250,6 +241,10 @@ export default function GymDashboardPage() {
   };
 
   useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    if (selectedLocId) loadLocationData(selectedLocId);
+  }, [selectedLocId]);
 
   useEffect(() => {
     if (activeTab === "workouts" && !workoutsLoaded) {
@@ -318,34 +313,13 @@ export default function GymDashboardPage() {
     setShowProductForm(true);
   };
 
-  const handleSaveGym = async () => {
-    setSaving(true);
-    setError("");
-    try {
-      if (gym) {
-        const updated = await api.patch<GymPublic>("/api/gyms/mine", gymForm);
-        setGym(updated);
-        setShowGymForm(false);
-      } else {
-        const created = await api.post<GymPublic>("/api/gyms/mine", gymForm);
-        setGym(created);
-        setShowGymForm(false);
-        load();
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Error al guardar");
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const handleAddLocation = async () => {
     setSaving(true);
     setError("");
     try {
       const loc = await api.post<GymLocation>("/api/gyms/mine/locations", locForm);
       setLocations((prev) => [...prev, loc]);
-      setLocForm({ name: "", address: "", city: "", capacity: 20 });
+      setLocForm({ name: "", address: "", city: "", capacity: 20, cancellation_hours: 2 });
       setShowLocForm(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error");
@@ -355,6 +329,7 @@ export default function GymDashboardPage() {
   };
 
   const handleAddPlan = async () => {
+    if (!selectedLocId) return;
     setSaving(true);
     setError("");
     try {
@@ -363,7 +338,7 @@ export default function GymDashboardPage() {
         sessions_included: planForm.sessions_included === "" ? null : Number(planForm.sessions_included),
         ticket_count: planForm.ticket_count === "" ? null : Number(planForm.ticket_count),
       };
-      const plan = await api.post<GymPlan>("/api/gyms/mine/plans", body);
+      const plan = await api.post<GymPlan>(`/api/gyms/mine/locations/${selectedLocId}/plans`, body);
       setPlans((prev) => [...prev, plan]);
       setPlanForm({ name: "", plan_type: "monthly", xp_price: 500, sessions_included: "", ticket_count: "" });
       setShowPlanForm(false);
@@ -375,10 +350,11 @@ export default function GymDashboardPage() {
   };
 
   const handleAddTemplate = async () => {
+    if (!selectedLocId) return;
     setSaving(true);
     setError("");
     try {
-      const tmpl = await api.post<GymClassTemplate>("/api/gyms/mine/templates", tmplForm);
+      const tmpl = await api.post<GymClassTemplate>(`/api/gyms/mine/locations/${selectedLocId}/templates`, tmplForm);
       setTemplates((prev) => [...prev, tmpl]);
       setTmplForm({ name: "", description: "", duration_minutes: 60, max_capacity: 20, tickets_cost: 1 });
       setShowTmplForm(false);
@@ -404,6 +380,7 @@ export default function GymDashboardPage() {
   };
 
   const handleUpdatePlan = async (planId: number) => {
+    if (!selectedLocId) return;
     setSaving(true);
     setError("");
     try {
@@ -412,7 +389,7 @@ export default function GymDashboardPage() {
         sessions_included: editPlanForm.sessions_included === "" ? null : Number(editPlanForm.sessions_included),
         ticket_count: editPlanForm.ticket_count === "" ? null : Number(editPlanForm.ticket_count),
       };
-      const updated = await api.patch<GymPlan>(`/api/gyms/mine/plans/${planId}`, body);
+      const updated = await api.patch<GymPlan>(`/api/gyms/mine/locations/${selectedLocId}/plans/${planId}`, body);
       setPlans((prev) => prev.map((p) => (p.id === planId ? updated : p)));
       setEditingPlanId(null);
     } catch (e) {
@@ -423,10 +400,11 @@ export default function GymDashboardPage() {
   };
 
   const handleUpdateTemplate = async (tmplId: number) => {
+    if (!selectedLocId) return;
     setSaving(true);
     setError("");
     try {
-      const updated = await api.patch<GymClassTemplate>(`/api/gyms/mine/templates/${tmplId}`, editTmplForm);
+      const updated = await api.patch<GymClassTemplate>(`/api/gyms/mine/locations/${selectedLocId}/templates/${tmplId}`, editTmplForm);
       setTemplates((prev) => prev.map((t) => (t.id === tmplId ? updated : t)));
       setEditingTmplId(null);
     } catch (e) {
@@ -732,25 +710,15 @@ export default function GymDashboardPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <Building2 className="h-6 w-6 text-primary" />
-            {gym ? gym.name : "Mi Gimnasio"}
-          </h1>
-          {gym && (
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Panel de gestión
-            </p>
-          )}
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+          <Building2 className="h-6 w-6 text-primary" />
+          {gym ? gym.name : "Mi Gimnasio"}
+        </h1>
         {gym && (
-          <button
-            onClick={() => setShowGymForm(!showGymForm)}
-            className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground hover:bg-secondary"
-          >
-            <Edit2 className="h-3.5 w-3.5" /> Editar
-          </button>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Panel de gestión
+          </p>
         )}
       </div>
 
@@ -760,74 +728,10 @@ export default function GymDashboardPage() {
         </div>
       )}
 
-      {/* Gym setup form */}
-      {showGymForm && (
-        <div className="rounded-xl border border-border bg-white p-5 space-y-4">
-          <h2 className="font-semibold text-foreground">
-            {gym ? "Editar gimnasio" : "Crear mi gimnasio"}
-          </h2>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {[
-              { label: "Nombre", key: "name", type: "text" },
-              { label: "Teléfono", key: "phone", type: "text" },
-              { label: "Web", key: "website", type: "text" },
-              { label: "Horas cancelación", key: "cancellation_hours", type: "number" },
-            ].map(({ label, key, type }) => (
-              <div key={key} className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">{label}</label>
-                <input
-                  type={type}
-                  value={(gymForm as Record<string, unknown>)[key] as string}
-                  onChange={(e) => setGymForm((f) => ({ ...f, [key]: type === "number" ? Number(e.target.value) : e.target.value }))}
-                  className="block w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none"
-                />
-              </div>
-            ))}
-            <div className="space-y-1 sm:col-span-2">
-              <label className="text-xs font-medium text-muted-foreground">Descripción</label>
-              <textarea
-                value={gymForm.description}
-                onChange={(e) => setGymForm((f) => ({ ...f, description: e.target.value }))}
-                rows={2}
-                className="block w-full rounded-md border border-border bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none"
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={gymForm.free_trial_enabled}
-                onChange={(e) => setGymForm((f) => ({ ...f, free_trial_enabled: e.target.checked }))}
-                id="trial"
-                className="rounded border-border"
-              />
-              <label htmlFor="trial" className="text-sm">Clase de prueba gratuita</label>
-            </div>
-          </div>
-          <div className="flex gap-2 justify-end">
-            {gym && (
-              <button onClick={() => setShowGymForm(false)} className="rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground hover:bg-secondary">
-                Cancelar
-              </button>
-            )}
-            <button
-              onClick={handleSaveGym}
-              disabled={saving || !gymForm.name}
-              className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-            >
-              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-              Guardar
-            </button>
-          </div>
-        </div>
-      )}
-
-      {!gym && !showGymForm && (
+      {!gym && (
         <div className="rounded-xl border border-dashed border-border p-10 text-center text-muted-foreground">
           <Building2 className="mx-auto h-10 w-10 mb-2 opacity-40" />
-          <p className="text-sm">Aún no has configurado tu gimnasio.</p>
-          <button onClick={() => setShowGymForm(true)} className="mt-3 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
-            Crear gimnasio
-          </button>
+          <p className="text-sm">Tu gimnasio se está configurando. Recarga la página en un momento.</p>
         </div>
       )}
 
@@ -895,6 +799,15 @@ export default function GymDashboardPage() {
                         className="block w-full rounded border border-border px-2 py-1.5 text-sm focus:border-primary focus:outline-none"
                       />
                     </div>
+                    <div className="space-y-0.5">
+                      <label className="text-xs text-muted-foreground">Horas cancelación</label>
+                      <input
+                        type="number"
+                        value={locForm.cancellation_hours}
+                        onChange={(e) => setLocForm((f) => ({ ...f, cancellation_hours: Number(e.target.value) }))}
+                        className="block w-full rounded border border-border px-2 py-1.5 text-sm focus:border-primary focus:outline-none"
+                      />
+                    </div>
                     <div className="col-span-2 flex justify-end gap-2">
                       <button onClick={() => setShowLocForm(false)} className="rounded border border-border px-3 py-1 text-xs text-muted-foreground hover:bg-secondary">Cancelar</button>
                       <button onClick={handleAddLocation} disabled={saving || !locForm.name} className="rounded bg-primary px-3 py-1 text-xs font-medium text-primary-foreground disabled:opacity-50">Guardar</button>
@@ -926,6 +839,10 @@ export default function GymDashboardPage() {
                           <label className="text-xs text-muted-foreground">Capacidad</label>
                           <input type="number" value={editLocForm.capacity} onChange={(e) => setEditLocForm((f) => ({ ...f, capacity: Number(e.target.value) }))} className="block w-full rounded border border-border px-2 py-1.5 text-sm focus:border-primary focus:outline-none" />
                         </div>
+                        <div className="space-y-0.5">
+                          <label className="text-xs text-muted-foreground">Horas cancelación</label>
+                          <input type="number" value={editLocForm.cancellation_hours} onChange={(e) => setEditLocForm((f) => ({ ...f, cancellation_hours: Number(e.target.value) }))} className="block w-full rounded border border-border px-2 py-1.5 text-sm focus:border-primary focus:outline-none" />
+                        </div>
                         <div className="col-span-2 flex justify-end gap-2">
                           <button onClick={() => setEditingLocId(null)} className="rounded border border-border px-3 py-1 text-xs text-muted-foreground hover:bg-secondary">Cancelar</button>
                           <button onClick={() => handleUpdateLocation(loc.id)} disabled={saving || !editLocForm.name} className="rounded bg-primary px-3 py-1 text-xs font-medium text-primary-foreground disabled:opacity-50">Guardar</button>
@@ -939,8 +856,9 @@ export default function GymDashboardPage() {
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-muted-foreground">{loc.capacity} plazas</span>
+                          <span className="text-xs text-muted-foreground">{loc.cancellation_hours}h cancel.</span>
                           <button
-                            onClick={() => { setEditingLocId(loc.id); setEditLocForm({ name: loc.name, address: loc.address ?? "", city: loc.city ?? "", capacity: loc.capacity }); }}
+                            onClick={() => { setEditingLocId(loc.id); setEditLocForm({ name: loc.name, address: loc.address ?? "", city: loc.city ?? "", capacity: loc.capacity, cancellation_hours: loc.cancellation_hours }); }}
                             className="rounded p-1 text-muted-foreground hover:bg-secondary hover:text-foreground"
                           >
                             <Edit2 className="h-3 w-3" />
@@ -952,6 +870,30 @@ export default function GymDashboardPage() {
                 )}
               </div>
 
+              {/* Location selector for plans/templates */}
+              {locations.length > 1 && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs text-muted-foreground font-medium">Sede activa:</span>
+                  {locations.map((loc) => (
+                    <button
+                      key={loc.id}
+                      onClick={() => setSelectedLocId(loc.id)}
+                      className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                        selectedLocId === loc.id
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-secondary text-muted-foreground hover:bg-secondary/80"
+                      }`}
+                    >
+                      {loc.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {!selectedLocId && (
+                <p className="text-sm text-muted-foreground">Añade una sede para gestionar planes y plantillas.</p>
+              )}
+
+              {selectedLocId && (<>
               {/* Plans */}
               <div className="rounded-xl border border-border bg-white p-5 space-y-3">
                 <div className="flex items-center justify-between">
@@ -1147,6 +1089,7 @@ export default function GymDashboardPage() {
                   </div>
                 )}
               </div>
+              </>)}
             </div>
           )}
 

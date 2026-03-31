@@ -82,7 +82,7 @@ const [exResults, setExResults] = useState<Exercise[]>([]);
 
   useEffect(() => {
     api
-      .get<WorkoutTemplate[]>("/api/templates")
+      .get<WorkoutTemplate[]>("/api/templates?mine_only=true")
       .then(setTemplates)
       .catch(() => {})
       .finally(() => setLoading(false));

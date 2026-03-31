@@ -6,8 +6,8 @@ import {
   ChevronUp,
   ClipboardList,
   Globe,
-  Lock,
   Loader2,
+  Lock,
   Pencil,
   Plus,
   Save,
@@ -92,7 +92,7 @@ export default function PlansPage() {
 
   const ensureTemplates = async () => {
     if (templates.length > 0) return;
-    const data = await api.get<WorkoutTemplate[]>("/api/templates").catch(() => []);
+    const data = await api.get<WorkoutTemplate[]>("/api/templates?mine_only=true").catch(() => []);
     setTemplates(data);
   };
 

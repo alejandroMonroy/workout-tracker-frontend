@@ -626,7 +626,6 @@ export interface GymPublic {
   logo_url: string | null;
   website: string | null;
   phone: string | null;
-  cancellation_hours: number;
   free_trial_enabled: boolean;
   created_at: string;
 }
@@ -638,12 +637,13 @@ export interface GymLocation {
   address: string | null;
   city: string | null;
   capacity: number;
+  cancellation_hours: number;
   is_active: boolean;
 }
 
 export interface GymPlan {
   id: number;
-  gym_id: number;
+  location_id: number;
   name: string;
   plan_type: PlanType;
   xp_price: number;
@@ -693,7 +693,7 @@ export interface GymTicketPurchase {
 
 export interface GymClassTemplate {
   id: number;
-  gym_id: number;
+  location_id: number;
   name: string;
   description: string | null;
   duration_minutes: number;
