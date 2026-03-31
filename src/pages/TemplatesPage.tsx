@@ -274,7 +274,7 @@ const [exResults, setExResults] = useState<Exercise[]>([]);
                 ))}
               </select>
             </div>
-            <div>
+            {/* <div>
               <label className="mb-1 block text-xs text-muted-foreground">Rondas</label>
               <input
                 type="number"
@@ -284,8 +284,8 @@ const [exResults, setExResults] = useState<Exercise[]>([]);
                 min={1}
                 className="w-full rounded-md border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
-            </div>
-            <div>
+            </div> */}
+            {/* <div>
               <label className="mb-1 block text-xs text-muted-foreground">Time cap (minutos)</label>
               <input
                 type="number"
@@ -295,7 +295,7 @@ const [exResults, setExResults] = useState<Exercise[]>([]);
                 min={1}
                 className="w-full rounded-md border border-border px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
-            </div>
+            </div> */}
             <div className="flex items-center gap-2">
               <input
                 type="checkbox"

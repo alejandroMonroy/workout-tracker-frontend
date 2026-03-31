@@ -1,25 +1,25 @@
 import AppLayout from "@/components/AppLayout";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { AuthProvider } from "@/hooks/useAuth";
-import AthletesPage from "@/pages/AthletesPage";
 import AthletePlansPage from "@/pages/AthletePlansPage";
-import CoachPage from "@/pages/CoachPage";
+import AthletesPage from "@/pages/AthletesPage";
 import ChallengesPage from "@/pages/ChallengesPage";
-import CompetitionsPage from "@/pages/CompetitionsPage";
-import CompetitionDetailPage from "@/pages/CompetitionDetailPage";
-import PlansPage from "@/pages/PlansPage";
-import TemplatesPage from "@/pages/TemplatesPage";
 import ClassLiveAthletePage from "@/pages/ClassLiveAthletePage";
+import CoachPage from "@/pages/CoachPage";
+import CompetitionDetailPage from "@/pages/CompetitionDetailPage";
+import CompetitionsPage from "@/pages/CompetitionsPage";
 import DashboardPage from "@/pages/DashboardPage";
 import DivisionsPage from "@/pages/DivisionsPage";
 import GymClassLivePage from "@/pages/GymClassLivePage";
 import GymDashboardPage from "@/pages/GymDashboardPage";
 import GymDirectoryPage from "@/pages/GymDirectoryPage";
-import ShopPage from "@/pages/ShopPage";
 import LoginPage from "@/pages/LoginPage";
+import PlansPage from "@/pages/PlansPage";
 import ProfilePage from "@/pages/ProfilePage";
 import RegisterPage from "@/pages/RegisterPage";
 import SessionDetailPage from "@/pages/SessionDetailPage";
+import ShopPage from "@/pages/ShopPage";
+import TemplatesPage from "@/pages/TemplatesPage";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 
 export default function App() {
@@ -58,7 +58,7 @@ export default function App() {
               <Route path="/gym/schedule" element={<GymDashboardPage />} />
               <Route path="/gym/members" element={<GymDashboardPage />} />
               <Route path="/gym/analytics" element={<GymDashboardPage />} />
-              <Route path="/gym/workouts" element={<GymDashboardPage />} />
+              <Route path="/gym/workouts" element={<TemplatesPage />} />
               <Route path="/gym/marketplace" element={<GymDashboardPage />} />
               {/* Live class – owner control */}
               <Route path="/gym/live/:schedId" element={<GymClassLivePage />} />
