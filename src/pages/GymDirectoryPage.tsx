@@ -1,5 +1,6 @@
 import { api } from "@/services/api";
 import type {
+  GymLocation,
   GymMembership,
   GymPlan,
   GymPublic,
@@ -117,8 +118,9 @@ export default function GymDirectoryPage() {
   const [expandedGymId, setExpandedGymId] = useState<number | null>(null);
   const [expandedMembershipGymId, setExpandedMembershipGymId] = useState<number | null>(null);
   const [gymDetails, setGymDetails] = useState<
-    Record<number, { plans: GymPlan[]; schedules: GymSchedule[]; weeklySlots: WeeklySlot[]; loading: boolean }>
+    Record<number, { plans: GymPlan[]; schedules: GymSchedule[]; weeklySlots: WeeklySlot[]; locations: GymLocation[]; loading: boolean }>
   >({});
+  const [selectedLocationId, setSelectedLocationId] = useState<Record<number, number | null>>({});
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState<"directory" | "memberships" | "historial">("directory");
@@ -151,19 +153,20 @@ export default function GymDirectoryPage() {
   };
 
   const loadGymDetails = async (gymId: number) => {
-    setGymDetails((prev) => ({ ...prev, [gymId]: { plans: [], schedules: [], weeklySlots: [], loading: true } }));
+    setGymDetails((prev) => ({ ...prev, [gymId]: { plans: [], schedules: [], weeklySlots: [], locations: [], loading: true } }));
     // Fetch schedules from Monday of the current week so all days of the week are visible
     const today = new Date();
     const dow = today.getDay();
     const monday = new Date(today);
     monday.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1));
     monday.setHours(0, 0, 0, 0);
-    const [plans, schedules, weeklySlots] = await Promise.all([
+    const [plans, schedules, weeklySlots, locations] = await Promise.all([
       api.get<GymPlan[]>(`/api/gyms/${gymId}/plans`).catch(() => []),
       api.get<GymSchedule[]>(`/api/gyms/${gymId}/schedule?from_dt=${encodeURIComponent(monday.toISOString())}`).catch(() => []),
       api.get<WeeklySlot[]>(`/api/gyms/${gymId}/weekly-slots`).catch(() => []),
+      api.get<GymLocation[]>(`/api/gyms/${gymId}/locations`).catch(() => []),
     ]);
-    setGymDetails((prev) => ({ ...prev, [gymId]: { plans, schedules, weeklySlots, loading: false } }));
+    setGymDetails((prev) => ({ ...prev, [gymId]: { plans, schedules, weeklySlots, locations, loading: false } }));
   };
 
   const refreshSchedules = async (gymId: number) => {
@@ -574,8 +577,37 @@ export default function GymDirectoryPage() {
                             {details?.plans && details.plans.length > 0 && (
                               <div>
                                 <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">Planes</p>
+                                {details.locations && details.locations.length > 1 && (
+                                  <div className="flex flex-wrap gap-1.5 mb-3">
+                                    <button
+                                      onClick={() => setSelectedLocationId((prev) => ({ ...prev, [gym.id]: null }))}
+                                      className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                                        !selectedLocationId[gym.id]
+                                          ? "bg-primary text-primary-foreground"
+                                          : "bg-secondary text-muted-foreground hover:bg-secondary/80"
+                                      }`}
+                                    >
+                                      Todas
+                                    </button>
+                                    {details.locations.map((loc) => (
+                                      <button
+                                        key={loc.id}
+                                        onClick={() => setSelectedLocationId((prev) => ({ ...prev, [gym.id]: loc.id }))}
+                                        className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                                          selectedLocationId[gym.id] === loc.id
+                                            ? "bg-primary text-primary-foreground"
+                                            : "bg-secondary text-muted-foreground hover:bg-secondary/80"
+                                        }`}
+                                      >
+                                        {loc.name}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
                                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                                  {details.plans.map((p) => (
+                                  {details.plans
+                                    .filter((p) => !selectedLocationId[gym.id] || p.location_id === selectedLocationId[gym.id])
+                                    .map((p) => (
                                     <div key={p.id} className="rounded-lg border border-border p-3 flex items-center justify-between">
                                       <div>
                                         <p className="text-sm font-medium">{p.name}</p>

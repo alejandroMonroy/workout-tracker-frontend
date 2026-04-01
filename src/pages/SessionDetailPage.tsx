@@ -2,32 +2,23 @@ import WodRunner from "@/components/WodRunner";
 import { useTimer, type TimerMode } from "@/hooks/useTimer";
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
-import type { CoachMessage, Exercise, WorkoutSession, WorkoutTemplate } from "@/types/api";
+import type { CoachMessage, WorkoutSession, WorkoutTemplate } from "@/types/api";
 import {
   CheckCircle,
+  Dumbbell,
   Loader2,
   MessageSquare,
   Pause,
   Play,
-  Plus,
   RotateCcw,
-  Search,
   Send,
+  Star,
   Timer,
-  Trash2,
+  Trophy,
   Volume2,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-
-interface SetForm {
-  exercise_id: number;
-  sets: string;
-  reps: string;
-  weight_kg: string;
-  rpe: string;
-  notes: string;
-}
 
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -43,6 +34,14 @@ const TIMER_MODES: { value: TimerMode; label: string }[] = [
   { value: "tabata", label: "Tabata" },
 ];
 
+const MOD_GRADIENT: Record<string, string> = {
+  amrap: "from-red-500 to-orange-500",
+  emom: "from-blue-500 to-cyan-500",
+  for_time: "from-green-500 to-emerald-500",
+  tabata: "from-purple-500 to-pink-500",
+  custom: "from-gray-600 to-gray-700",
+};
+
 export default function SessionDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -53,13 +52,13 @@ export default function SessionDetailPage() {
   const [finishing, setFinishing] = useState(false);
   const initRef = useRef(false);
 
-  // Coach message
+  // Coach message (send form for finished sessions without a coach message yet)
   const [hasCoach, setHasCoach] = useState(false);
   const [messageBody, setMessageBody] = useState("");
   const [sendingMessage, setSendingMessage] = useState(false);
   const [sentMessage, setSentMessage] = useState<CoachMessage | null>(null);
 
-  // Timer panel
+  // Timer panel (active sessions only)
   const [showTimer, setShowTimer] = useState(false);
   const [timerMode, setTimerMode] = useState<TimerMode>("stopwatch");
   const [durationMin, setDurationMin] = useState(12);
@@ -98,37 +97,6 @@ export default function SessionDetailPage() {
       ? formatTime(timer.elapsed)
       : formatTime(timer.remaining);
 
-  // Exercise search
-  const [exerciseSearch, setExerciseSearch] = useState("");
-  const [exerciseResults, setExerciseResults] = useState<Exercise[]>([]);
-  const [showExerciseDropdown, setShowExerciseDropdown] = useState(false);
-  const exerciseSearchRef = useRef<HTMLDivElement>(null);
-  const exerciseSearchTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-
-  const [form, setForm] = useState<SetForm>({
-    exercise_id: 0,
-    sets: "",
-    reps: "",
-    weight_kg: "",
-    rpe: "",
-    notes: "",
-  });
-
-  const loadSession = useCallback(async () => {
-    try {
-      const s = await api.get<WorkoutSession>(`/api/sessions/${id}`);
-      setSession(s);
-      if (s.template_id) {
-        try {
-          const t = await api.get<WorkoutTemplate>(`/api/templates/${s.template_id}`);
-          setTemplate(t);
-        } catch { /* ignore */ }
-      }
-    } catch {
-      navigate("/profile");
-    }
-  }, [id, navigate]);
-
   useEffect(() => {
     if (initRef.current) return;
     initRef.current = true;
@@ -157,61 +125,6 @@ export default function SessionDetailPage() {
       }
     })();
   }, [id, navigate]);
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (exerciseSearchRef.current && !exerciseSearchRef.current.contains(e.target as Node)) {
-        setShowExerciseDropdown(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  const fetchExercises = async (query: string) => {
-    try {
-      const params = new URLSearchParams({ limit: "10" });
-      if (query.trim()) params.set("search", query.trim());
-      const results = await api.get<Exercise[]>(`/api/exercises?${params}`);
-      setExerciseResults(results);
-      setShowExerciseDropdown(true);
-    } catch { /* ignore */ }
-  };
-
-  const handleExerciseSearch = (value: string) => {
-    setExerciseSearch(value);
-    setForm((f) => ({ ...f, exercise_id: 0 }));
-    clearTimeout(exerciseSearchTimer.current);
-    exerciseSearchTimer.current = setTimeout(() => fetchExercises(value), 250);
-  };
-
-  const selectExercise = (ex: Exercise) => {
-    setForm((f) => ({ ...f, exercise_id: ex.id }));
-    setExerciseSearch(ex.name);
-    setShowExerciseDropdown(false);
-  };
-
-  const addSet = async () => {
-    if (!session || !form.exercise_id) return;
-    const setNumber = (session.sets?.length ?? 0) + 1;
-    const setsCount = Math.max(1, Number(form.sets) || 1);
-    await api.post(`/api/sessions/${id}/sets`, {
-      exercise_id: form.exercise_id,
-      set_number: setNumber,
-      sets_count: setsCount,
-      reps: form.reps ? Number(form.reps) : null,
-      weight_kg: form.weight_kg ? Number(form.weight_kg) : null,
-      rpe: form.rpe ? Number(form.rpe) : null,
-      notes: form.notes || null,
-    });
-    setForm((f) => ({ ...f, sets: "", reps: "", weight_kg: "", rpe: "", notes: "" }));
-    loadSession();
-  };
-
-  const deleteSet = async (setId: number) => {
-    await api.delete(`/api/sessions/${id}/sets/${setId}`);
-    loadSession();
-  };
 
   const finishSession = async () => {
     setFinishing(true);
@@ -247,50 +160,213 @@ export default function SessionDetailPage() {
   const isActive = !session.finished_at;
 
   if (isActive && template && session.template_id) {
-    return <WodRunner template={template} sessionId={session.id} onFinish={loadSession} />;
+    return <WodRunner template={template} sessionId={session.id} onFinish={() => navigate("/profile")} />;
   }
 
+  /* ── Finished session — summary view ── */
+  if (!isActive) {
+    const gradient = template ? (MOD_GRADIENT[template.modality] ?? MOD_GRADIENT.custom) : MOD_GRADIENT.custom;
+    const workoutName = template?.name ?? `Workout #${session.id}`;
+    const finishedDate = new Date(session.finished_at!).toLocaleDateString("es-ES", {
+      weekday: "long", day: "numeric", month: "long",
+    });
+
+    // Group sets by exercise
+    const exerciseMap = new Map<string, typeof session.sets>();
+    for (const s of session.sets) {
+      const key = s.exercise?.name ?? `Ejercicio #${s.exercise_id}`;
+      if (!exerciseMap.has(key)) exerciseMap.set(key, []);
+      exerciseMap.get(key)!.push(s);
+    }
+
+    return (
+      <div className="mx-auto max-w-lg space-y-4">
+        {/* Header */}
+        <div className={cn("rounded-2xl bg-linear-to-br p-6 text-white shadow-lg text-center", gradient)}>
+          <div className="flex justify-center mb-3">
+            <Trophy className="h-14 w-14 text-yellow-300 drop-shadow" />
+          </div>
+          <h1 className="text-2xl font-bold">{workoutName}</h1>
+          <p className="mt-1 text-sm opacity-80 capitalize">{finishedDate}</p>
+        </div>
+
+        {/* Stats grid */}
+        <div className="grid grid-cols-2 gap-3">
+          {session.total_duration_sec != null && (
+            <div className="rounded-xl border border-border bg-card p-4 text-center shadow-sm">
+              <p className="text-3xl font-black tabular-nums">{formatTime(session.total_duration_sec)}</p>
+              <p className="mt-1 text-xs text-muted-foreground">Tiempo total</p>
+            </div>
+          )}
+          <div className="rounded-xl border border-border bg-card p-4 text-center shadow-sm">
+            <p className="text-3xl font-black text-yellow-500">+{session.xp_earned}</p>
+            <p className="mt-1 text-xs text-muted-foreground">XP ganados</p>
+          </div>
+          {session.total_volume_kg > 0 && (
+            <div className="rounded-xl border border-border bg-card p-4 text-center shadow-sm">
+              <p className="text-3xl font-black text-blue-500">
+                {session.total_volume_kg % 1 === 0
+                  ? session.total_volume_kg
+                  : session.total_volume_kg.toFixed(1)}
+                <span className="text-base font-semibold"> kg</span>
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">Volumen total</p>
+            </div>
+          )}
+          {session.pr_count > 0 && (
+            <div className="rounded-xl border border-border bg-card p-4 text-center shadow-sm">
+              <p className="text-3xl font-black text-green-500">{session.pr_count}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {session.pr_count === 1 ? "Récord personal" : "Récords personales"}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Exercises done — from recorded sets, or fall back to template blocks */}
+        {(exerciseMap.size > 0 || (template && template.blocks.length > 0)) && (
+          <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              <Dumbbell className="h-4 w-4" />
+              Ejercicios realizados
+            </h2>
+            <div className="space-y-3">
+              {exerciseMap.size > 0
+                ? [...exerciseMap.entries()].map(([name, sets], i) => (
+                    <div key={name} className="flex items-start gap-3">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                        {i + 1}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium">{name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {sets.map((s) =>
+                            [
+                              s.sets_count && s.reps ? `${s.sets_count}×${s.reps} reps` : s.reps ? `${s.reps} reps` : null,
+                              s.weight_kg ? `${s.weight_kg} kg` : null,
+                              s.distance_m ? `${s.distance_m} m` : null,
+                            ].filter(Boolean).join(" · ")
+                          ).filter(Boolean).join(" | ")}
+                        </p>
+                      </div>
+                      <Star className="h-4 w-4 shrink-0 text-yellow-400" />
+                    </div>
+                  ))
+                : template!.blocks.map((b, i) => (
+                    <div key={b.id} className="flex items-start gap-3">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                        {i + 1}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium">
+                          {b.exercise?.name ?? `Ejercicio #${b.exercise_id}`}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {[
+                            b.target_sets && b.target_reps ? `${b.target_sets}×${b.target_reps} reps` : b.target_reps ? `${b.target_reps} reps` : null,
+                            b.target_weight_kg ? `${b.target_weight_kg} kg` : null,
+                            b.target_distance_m ? `${b.target_distance_m} m` : null,
+                            b.target_duration_sec ? `${b.target_duration_sec}s` : null,
+                          ].filter(Boolean).join(" · ") || "Sin objetivo específico"}
+                        </p>
+                      </div>
+                      <Star className="h-4 w-4 shrink-0 text-yellow-400" />
+                    </div>
+                  ))
+              }
+            </div>
+          </div>
+        )}
+
+        {/* Coach message (received) */}
+        {session.coach_message && (session.plan_workout_id || session.class_schedule_id) && (
+          <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 shadow-sm">
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-primary">
+              Mensaje de {session.coach_name ?? "tu entrenador"}
+            </p>
+            <p className="text-sm text-foreground">{session.coach_message}</p>
+          </div>
+        )}
+
+        {/* Send message to coach */}
+        {hasCoach && !session.coach_message && (session.plan_workout_id || session.class_schedule_id) && (
+          <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+            <h2 className="mb-3 flex items-center gap-2 font-semibold">
+              <MessageSquare className="h-4 w-4 text-primary" />
+              Mensaje a tu entrenador
+            </h2>
+            {sentMessage ? (
+              <div className="rounded-md bg-accent/10 px-4 py-3 text-sm text-accent">
+                Mensaje enviado correctamente.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <textarea
+                  rows={3}
+                  placeholder="Cuéntale a tu entrenador cómo fue el entrenamiento..."
+                  value={messageBody}
+                  onChange={(e) => setMessageBody(e.target.value)}
+                  className="w-full rounded-md border border-border px-3 py-2 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none"
+                />
+                <button
+                  onClick={sendMessageToCoach}
+                  disabled={sendingMessage || !messageBody.trim()}
+                  className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                >
+                  {sendingMessage ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  Enviar
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        <button
+          onClick={() => navigate("/profile")}
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-card py-3 text-sm font-medium shadow-sm hover:bg-secondary"
+        >
+          Volver al historial
+        </button>
+      </div>
+    );
+  }
+
+  /* ── Active session (non-template) ── */
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
         <div className="flex-1">
           <h1 className="text-xl font-bold">Sesión #{session.id}</h1>
-          <p className="text-sm text-muted-foreground">
-            {isActive ? "En curso" : "Finalizada"}
-            {template && ` · ${template.name}`}
-          </p>
+          <p className="text-sm text-muted-foreground">En curso</p>
         </div>
-        {isActive && (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowTimer(!showTimer)}
-              className={cn(
-                "flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors",
-                showTimer
-                  ? "border-primary bg-primary/10 text-primary"
-                  : "border-border text-muted-foreground hover:bg-secondary",
-              )}
-            >
-              <Timer className="h-4 w-4" />
-              Timer
-            </button>
-            <button
-              onClick={finishSession}
-              disabled={finishing}
-              className="flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:bg-accent/90 disabled:opacity-50"
-            >
-              {finishing ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
-              Finalizar
-            </button>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowTimer(!showTimer)}
+            className={cn(
+              "flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors",
+              showTimer
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-border text-muted-foreground hover:bg-secondary",
+            )}
+          >
+            <Timer className="h-4 w-4" />
+            Timer
+          </button>
+          <button
+            onClick={finishSession}
+            disabled={finishing}
+            className="flex items-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:bg-accent/90 disabled:opacity-50"
+          >
+            {finishing ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+            Finalizar
+          </button>
+        </div>
       </div>
 
       {/* Timer Panel */}
-      {showTimer && isActive && (
+      {showTimer && (
         <div className="rounded-lg border border-border bg-card p-4 shadow-sm space-y-4">
-          {/* Mode selector */}
           <div className="flex flex-wrap gap-2">
             {TIMER_MODES.map((m) => (
               <button
@@ -308,7 +384,6 @@ export default function SessionDetailPage() {
             ))}
           </div>
 
-          {/* Settings */}
           {!timer.running && !timer.finished && (
             <div className="grid grid-cols-2 gap-3">
               {(timerMode === "amrap" || timerMode === "for_time") && (
@@ -372,7 +447,6 @@ export default function SessionDetailPage() {
             </div>
           )}
 
-          {/* Display */}
           <div className="flex flex-col items-center gap-3 rounded-xl border border-border bg-secondary/30 py-5">
             {timerMode === "tabata" && timer.running && (
               <span className={cn("text-sm font-bold uppercase", timer.phase === "work" ? "text-accent" : "text-destructive")}>
@@ -416,72 +490,6 @@ export default function SessionDetailPage() {
         </div>
       )}
 
-      {/* Add set form */}
-      {isActive && (
-        <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
-          <h2 className="mb-3 font-semibold">Agregar Serie</h2>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-            <div ref={exerciseSearchRef} className="col-span-2 sm:col-span-5 relative">
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <input
-                  type="text"
-                  placeholder="Buscar ejercicio..."
-                  value={exerciseSearch}
-                  onChange={(e) => handleExerciseSearch(e.target.value)}
-                  onFocus={() => {
-                    if (exerciseResults.length > 0) setShowExerciseDropdown(true);
-                    else fetchExercises(exerciseSearch);
-                  }}
-                  className="block w-full rounded-md border border-border bg-white py-2 pl-9 pr-3 text-sm"
-                />
-              </div>
-              {showExerciseDropdown && exerciseResults.length > 0 && (
-                <div className="absolute z-10 mt-1 max-h-48 w-full overflow-y-auto rounded-md border border-border bg-white shadow-lg">
-                  {exerciseResults.map((ex) => (
-                    <button
-                      key={ex.id}
-                      type="button"
-                      onClick={() => selectExercise(ex)}
-                      className="w-full px-3 py-2 text-left text-sm hover:bg-accent/50"
-                    >
-                      {ex.name}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <input
-              type="number" placeholder="Series" min="1" value={form.sets}
-              onChange={(e) => setForm({ ...form, sets: e.target.value })}
-              className="rounded-md border border-border px-3 py-2 text-sm"
-            />
-            <input
-              type="number" placeholder="Reps" value={form.reps}
-              onChange={(e) => setForm({ ...form, reps: e.target.value })}
-              className="rounded-md border border-border px-3 py-2 text-sm"
-            />
-            <input
-              type="number" placeholder="Peso (kg)" value={form.weight_kg}
-              onChange={(e) => setForm({ ...form, weight_kg: e.target.value })}
-              className="rounded-md border border-border px-3 py-2 text-sm"
-            />
-            <input
-              type="number" placeholder="RPE" min="1" max="10" value={form.rpe}
-              onChange={(e) => setForm({ ...form, rpe: e.target.value })}
-              className="rounded-md border border-border px-3 py-2 text-sm"
-            />
-            <button
-              onClick={addSet}
-              className="flex items-center justify-center gap-1 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-            >
-              <Plus className="h-4 w-4" />
-              Agregar
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Sets list */}
       <div className="rounded-lg border border-border bg-card shadow-sm">
         <div className="border-b border-border px-5 py-3">
@@ -489,7 +497,7 @@ export default function SessionDetailPage() {
         </div>
         {session.sets.length === 0 ? (
           <p className="px-5 py-8 text-center text-sm text-muted-foreground">
-            No hay series aún. Agrega la primera.
+            No hay series aún.
           </p>
         ) : (
           <div className="divide-y divide-border">
@@ -499,61 +507,16 @@ export default function SessionDetailPage() {
                   <p className="text-sm font-medium">{s.exercise?.name ?? `Ejercicio #${s.exercise_id}`}</p>
                   <p className="text-xs text-muted-foreground">
                     Set #{s.set_number}
-                    {s.reps != null && ` · ${s.sets_count ?? 1}x${s.reps} reps`}
+                    {s.reps != null && ` · ${s.sets_count ?? 1}×${s.reps} reps`}
                     {s.weight_kg != null && ` · ${s.weight_kg} kg`}
                     {s.rpe != null && ` · RPE ${s.rpe}`}
                   </p>
                 </div>
-                {isActive && (
-                  <button
-                    onClick={() => deleteSet(s.id)}
-                    className="rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                )}
               </div>
             ))}
           </div>
         )}
       </div>
-
-      {/* Message to coach — shown on finished sessions if athlete has a coach */}
-      {!isActive && hasCoach && (
-        <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
-          <h2 className="mb-3 flex items-center gap-2 font-semibold">
-            <MessageSquare className="h-4 w-4 text-primary" />
-            Mensaje a tu entrenador
-          </h2>
-          {sentMessage ? (
-            <div className="rounded-md bg-accent/10 px-4 py-3 text-sm text-accent">
-              Mensaje enviado correctamente.
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <textarea
-                rows={3}
-                placeholder="Cuéntale a tu entrenador cómo fue el entrenamiento..."
-                value={messageBody}
-                onChange={(e) => setMessageBody(e.target.value)}
-                className="w-full rounded-md border border-border px-3 py-2 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none"
-              />
-              <button
-                onClick={sendMessageToCoach}
-                disabled={sendingMessage || !messageBody.trim()}
-                className="flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-              >
-                {sendingMessage ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4" />
-                )}
-                Enviar
-              </button>
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }

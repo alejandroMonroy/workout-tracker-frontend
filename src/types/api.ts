@@ -134,12 +134,19 @@ export interface WorkoutSession {
   rpe: number | null;
   mood: string | null;
   sets: SessionSet[];
+  // summary fields (populated when session is finished)
+  xp_earned: number;
+  pr_count: number;
+  total_volume_kg: number;
+  coach_message: string | null;
+  coach_name: string | null;
 }
 
 export interface SessionListItem {
   id: number;
   user_id: number;
   template_id: number | null;
+  template_name: string | null;
   plan_workout_id: number | null;
   started_at: string;
   finished_at: string | null;
@@ -190,6 +197,8 @@ export interface CoachPublic {
   plan_count: number;
   subscriber_count: number;
   is_subscribed: boolean;
+  current_tier_id: number | null;
+  tiers: CoachTier[];
 }
 
 export interface CoachSubscriptionInfo {
@@ -863,6 +872,22 @@ export interface DashboardSummary {
 
 // === Plan ===
 
+export interface PlanTag {
+  id: number;
+  name: string;
+  color: string;
+  created_by: number;
+}
+
+export interface CoachTier {
+  id: number;
+  coach_id: number;
+  name: string;
+  description: string | null;
+  xp_per_month: number;
+  tags: PlanTag[];
+}
+
 export interface PlanWorkout {
   id: number;
   plan_id: number;
@@ -878,9 +903,11 @@ export interface Plan {
   name: string;
   description: string | null;
   created_by: number;
+  creator_name: string;
   is_public: boolean;
   created_at: string;
   workouts: PlanWorkout[];
+  tags: PlanTag[];
   subscription_id: number | null;
 }
 

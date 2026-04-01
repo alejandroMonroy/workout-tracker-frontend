@@ -1,6 +1,5 @@
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
-import { api } from "@/services/api";
 import {
     BarChart3,
     BookOpen,
@@ -13,7 +12,6 @@ import {
     Medal,
     Menu,
     MessageSquare,
-    Plus,
     Shield,
     ShoppingBag,
     Swords,
@@ -26,6 +24,7 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 
 const athleteLinks = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/workouts", label: "Workouts", icon: Dumbbell },
   { to: "/challenges", label: "Desafíos", icon: Swords },
   { to: "/competitions", label: "Competiciones", icon: Medal },
   { to: "/divisions", label: "Liga", icon: Shield },
@@ -63,16 +62,6 @@ export default function AppLayout() {
   const handleLogout = () => {
     logout();
     navigate("/login");
-  };
-
-  const startFreeSession = async () => {
-    try {
-      const session = await api.post<{ id: number }>("/api/sessions", {});
-      setSidebarOpen(false);
-      navigate(`/sessions/${session.id}`);
-    } catch {
-      /* empty */
-    }
   };
 
   const isGym = user?.role === "gym";
@@ -132,16 +121,6 @@ export default function AppLayout() {
             </NavLink>
           ))}
 
-          {/* New session action — athletes only */}
-          {!isGym && !isCoach && (
-            <button
-              onClick={startFreeSession}
-              className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-            >
-              <Plus className="h-5 w-5" />
-              Nueva Sesión
-            </button>
-          )}
         </nav>
 
         {/* User */}

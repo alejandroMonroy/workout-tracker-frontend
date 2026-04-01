@@ -3,9 +3,11 @@ import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
 import type { TemplateBlock, WorkoutModality, WorkoutTemplate } from "@/types/api";
 import {
+    Dumbbell,
     Flag,
     Pause,
     Play,
+    Star,
     Trophy,
     Zap,
 } from "lucide-react";
@@ -108,11 +110,21 @@ export default function WodRunner({
   const totalExercises = exercises.length;
   const totalRounds = cfg.rounds ?? 1;
 
+  interface WorkoutSummary {
+    xp_earned: number;
+    pr_count: number;
+    total_volume_kg: number;
+    total_duration_sec: number | null;
+    coach_message: string | null;
+    coach_name: string | null;
+  }
+
   /* ── state ── */
   const [phase, setPhase] = useState<Phase>("ready");
   const [blockIdx, setBlockIdx] = useState(0);
   const [round, setRound] = useState(1);
   const [cdVal, setCdVal] = useState(3); // countdown 3-2-1
+  const [summary, setSummary] = useState<WorkoutSummary | null>(null);
   const finishedRef = useRef(false);
   const cdRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -211,19 +223,25 @@ export default function WodRunner({
   }, []);
 
   /* ── manual finish ── */
-  const finishWod = useCallback(() => {
+  const finishWod = useCallback(async () => {
     if (finishedRef.current) return;
     finishedRef.current = true;
+    const elapsed = timer.elapsed;
     timer.pause();
-    api.patch(`/api/sessions/${sessionId}/finish`, {}).catch(() => {});
     setPhase("completed");
+    try {
+      const s = await api.patch<WorkoutSummary>(`/api/sessions/${sessionId}/finish`, { duration_sec: elapsed });
+      setSummary(s);
+    } catch { /* ignore */ }
   }, [timer, sessionId]);
 
   /* ── auto-finish API when completed ── */
   useEffect(() => {
     if (phase === "completed" && !finishedRef.current) {
       finishedRef.current = true;
-      api.patch(`/api/sessions/${sessionId}/finish`, {}).catch(() => {});
+      api.patch<WorkoutSummary>(`/api/sessions/${sessionId}/finish`, { duration_sec: timer.elapsed })
+        .then(setSummary)
+        .catch(() => {});
     }
   }, [phase, sessionId]);
 
@@ -338,27 +356,93 @@ export default function WodRunner({
   /* ================================================================ */
   if (phase === "completed") {
     return (
-      <div className="mx-auto max-w-lg space-y-6">
-        <div className="flex flex-col items-center gap-4 rounded-2xl border border-border bg-card p-8 text-center shadow-sm">
-          <div className="animate-bounce">
-            <Trophy className="h-16 w-16 text-yellow-500" />
+      <div className="mx-auto max-w-lg space-y-4">
+        {/* Header */}
+        <div className={cn("rounded-2xl bg-linear-to-br p-6 text-white shadow-lg text-center", gradient)}>
+          <div className="flex justify-center mb-3">
+            <Trophy className="h-14 w-14 text-yellow-300 drop-shadow" />
           </div>
-          <h1 className="text-2xl font-bold">¡WOD Completado! 🎉</h1>
-          <p className="text-muted-foreground">{cfg.name}</p>
+          <h1 className="text-2xl font-bold">¡WOD Completado!</h1>
+          <p className="mt-1 text-sm opacity-80">{cfg.name}</p>
+        </div>
 
-          <div className="mt-4">
-            <div className="rounded-lg bg-secondary p-4">
-              <p className="text-3xl font-bold">{fmt(timer.elapsed)}</p>
-              <p className="text-xs text-muted-foreground">Tiempo total</p>
+        {/* Stats grid */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-xl border border-border bg-card p-4 text-center shadow-sm">
+            <p className="text-3xl font-black tabular-nums">{fmt(timer.elapsed)}</p>
+            <p className="mt-1 text-xs text-muted-foreground">Tiempo total</p>
+          </div>
+          <div className="rounded-xl border border-border bg-card p-4 text-center shadow-sm">
+            <p className="text-3xl font-black text-yellow-500">
+              {summary ? `+${summary.xp_earned}` : "—"}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">XP ganados</p>
+          </div>
+          {summary && summary.total_volume_kg > 0 && (
+            <div className="rounded-xl border border-border bg-card p-4 text-center shadow-sm">
+              <p className="text-3xl font-black text-blue-500">
+                {summary.total_volume_kg % 1 === 0
+                  ? summary.total_volume_kg
+                  : summary.total_volume_kg.toFixed(1)}
+                <span className="text-base font-semibold"> kg</span>
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">Volumen total</p>
             </div>
+          )}
+          {summary && summary.pr_count > 0 && (
+            <div className="rounded-xl border border-border bg-card p-4 text-center shadow-sm">
+              <p className="text-3xl font-black text-green-500">{summary.pr_count}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {summary.pr_count === 1 ? "Récord personal" : "Récords personales"}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Exercises done */}
+        <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            <Dumbbell className="h-4 w-4" />
+            Ejercicios realizados
+          </h2>
+          <div className="space-y-2">
+            {exercises.map((b, i) => (
+              <div key={b.id} className="flex items-center gap-3">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                  {i + 1}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium">{b.exercise?.name ?? `Ejercicio #${b.exercise_id}`}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {[
+                      b.target_reps && `${b.target_reps} reps`,
+                      b.target_weight_kg && `${b.target_weight_kg} kg`,
+                      b.target_distance_m && `${b.target_distance_m} m`,
+                      b.target_sets && `${b.target_sets} series`,
+                    ].filter(Boolean).join(" · ") || "Sin objetivo específico"}
+                  </p>
+                </div>
+                <Star className="h-4 w-4 shrink-0 text-yellow-400" />
+              </div>
+            ))}
           </div>
         </div>
+
+        {/* Coach message */}
+        {summary?.coach_message && (
+          <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 shadow-sm">
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-primary">
+              Mensaje de {summary.coach_name ?? "tu entrenador"}
+            </p>
+            <p className="text-sm text-foreground">{summary.coach_message}</p>
+          </div>
+        )}
 
         <button
           onClick={onFinish}
           className="flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-card py-3 text-sm font-medium shadow-sm hover:bg-secondary"
         >
-          Ver sesión
+          Ver historial
         </button>
       </div>
     );

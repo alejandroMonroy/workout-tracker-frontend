@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
-import type { CoachPublic, Plan, PlanSubscriber, WorkoutTemplate } from "@/types/api";
+import type { CoachPublic, CoachTier, Plan, PlanTag, PlanSubscriber, WorkoutTemplate } from "@/types/api";
 import {
   ChevronDown,
   ChevronUp,
@@ -12,16 +12,22 @@ import {
   Plus,
   Save,
   Star,
+  Tag,
   Trash2,
   Users,
   X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 
+const PRESET_COLORS = [
+  "#6366f1", "#ec4899", "#f97316", "#10b981", "#3b82f6", "#f59e0b", "#8b5cf6", "#14b8a6",
+];
+
 const emptyForm = () => ({
   name: "",
   description: "",
   is_public: false,
+  tag_ids: [] as number[],
 });
 
 type EditWorkoutEntry = {
@@ -37,18 +43,32 @@ export default function PlansPage() {
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [coachProfile, setCoachProfile] = useState<CoachPublic | null>(null);
-  const [editingPrice, setEditingPrice] = useState(false);
-  const [priceInput, setPriceInput] = useState("");
-  const [savingPrice, setSavingPrice] = useState(false);
   const [form, setForm] = useState(emptyForm());
   const [saving, setSaving] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [togglingPrivacyId, setTogglingPrivacyId] = useState<number | null>(null);
 
+  // Tier state
+  const [tiers, setTiers] = useState<CoachTier[]>([]);
+  const [showCreateTier, setShowCreateTier] = useState(false);
+  const [tierForm, setTierForm] = useState({ name: "", description: "", xp_per_month: "", tag_ids: [] as number[] });
+  const [savingTier, setSavingTier] = useState(false);
+  const [editingTierId, setEditingTierId] = useState<number | null>(null);
+  const [editTierForm, setEditTierForm] = useState({ name: "", description: "", xp_per_month: "", tag_ids: [] as number[] });
+  const [savingEditTier, setSavingEditTier] = useState(false);
+  const [deletingTierId, setDeletingTierId] = useState<number | null>(null);
+
+  // Tag state
+  const [allTags, setAllTags] = useState<PlanTag[]>([]);
+  const [showNewTag, setShowNewTag] = useState(false);
+  const [newTagName, setNewTagName] = useState("");
+  const [newTagColor, setNewTagColor] = useState(PRESET_COLORS[0]);
+  const [savingTag, setSavingTag] = useState(false);
+
   // Edit plan state
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [editForm, setEditForm] = useState({ name: "", description: "", is_public: false });
+  const [editForm, setEditForm] = useState({ name: "", description: "", is_public: false, tag_ids: [] as number[] });
   const [editWorkouts, setEditWorkouts] = useState<EditWorkoutEntry[]>([]);
   const [showAddInEdit, setShowAddInEdit] = useState(false);
   const [editTemplateSearch, setEditTemplateSearch] = useState("");
@@ -70,25 +90,109 @@ export default function PlansPage() {
       .then(setPlans)
       .catch(() => {})
       .finally(() => setLoading(false));
+    api.get<PlanTag[]>("/api/tags").then(setAllTags).catch(() => {});
   }, []);
 
   useEffect(() => {
     api.get<CoachPublic>("/api/coaches/me")
-      .then(setCoachProfile)
+      .then((p) => { setCoachProfile(p); setTiers(p.tiers ?? []); })
       .catch(() => {});
   }, []);
 
-  const handleSavePrice = async () => {
-    const price = parseInt(priceInput, 10);
+  const handleCreateTier = async () => {
+    if (!tierForm.name.trim()) return;
+    const price = parseInt(tierForm.xp_per_month, 10);
     if (isNaN(price) || price < 0) return;
-    setSavingPrice(true);
+    setSavingTier(true);
     try {
-      const updated = await api.put<CoachPublic>("/api/coaches/me/price", { price });
-      setCoachProfile(updated);
-      setEditingPrice(false);
+      const created = await api.post<CoachTier>("/api/coaches/me/tiers", {
+        name: tierForm.name.trim(),
+        description: tierForm.description.trim() || null,
+        xp_per_month: price,
+        tag_ids: tierForm.tag_ids,
+      });
+      setTiers((prev) => [...prev, created].sort((a, b) => a.xp_per_month - b.xp_per_month));
+      setTierForm({ name: "", description: "", xp_per_month: "", tag_ids: [] });
+      setShowCreateTier(false);
     } catch {}
-    setSavingPrice(false);
+    setSavingTier(false);
   };
+
+  const openEditTier = (tier: CoachTier) => {
+    setEditingTierId(tier.id);
+    setEditTierForm({
+      name: tier.name,
+      description: tier.description ?? "",
+      xp_per_month: String(tier.xp_per_month),
+      tag_ids: tier.tags.map((t) => t.id),
+    });
+  };
+
+  const handleSaveEditTier = async () => {
+    if (!editingTierId || !editTierForm.name.trim()) return;
+    const price = parseInt(editTierForm.xp_per_month, 10);
+    if (isNaN(price) || price < 0) return;
+    setSavingEditTier(true);
+    try {
+      const updated = await api.put<CoachTier>(`/api/coaches/me/tiers/${editingTierId}`, {
+        name: editTierForm.name.trim(),
+        description: editTierForm.description.trim() || null,
+        xp_per_month: price,
+        tag_ids: editTierForm.tag_ids,
+      });
+      setTiers((prev) => prev.map((t) => (t.id === editingTierId ? updated : t)).sort((a, b) => a.xp_per_month - b.xp_per_month));
+      setEditingTierId(null);
+    } catch {}
+    setSavingEditTier(false);
+  };
+
+  const handleDeleteTier = async (tierId: number) => {
+    if (!confirm("¿Eliminar este tier?")) return;
+    setDeletingTierId(tierId);
+    try {
+      await api.delete(`/api/coaches/me/tiers/${tierId}`);
+      setTiers((prev) => prev.filter((t) => t.id !== tierId));
+    } catch {}
+    setDeletingTierId(null);
+  };
+
+  const handleCreateTag = async () => {
+    if (!newTagName.trim()) return;
+    setSavingTag(true);
+    try {
+      const tag = await api.post<PlanTag>("/api/tags", { name: newTagName.trim(), color: newTagColor });
+      setAllTags((prev) => [...prev, tag].sort((a, b) => a.name.localeCompare(b.name)));
+      setNewTagName("");
+      setShowNewTag(false);
+    } catch {}
+    setSavingTag(false);
+  };
+
+  const handleDeleteTag = async (tagId: number) => {
+    try {
+      await api.delete(`/api/tags/${tagId}`);
+      setAllTags((prev) => prev.filter((t) => t.id !== tagId));
+      setPlans((prev) => prev.map((p) => ({ ...p, tags: p.tags.filter((t) => t.id !== tagId) })));
+      setForm((f) => ({ ...f, tag_ids: f.tag_ids.filter((id) => id !== tagId) }));
+      setEditForm((f) => ({ ...f, tag_ids: f.tag_ids.filter((id) => id !== tagId) }));
+    } catch {}
+  };
+
+  const toggleFormTag = (tagId: number) =>
+    setForm((f) => ({
+      ...f,
+      tag_ids: f.tag_ids.includes(tagId)
+        ? f.tag_ids.filter((id) => id !== tagId)
+        : [...f.tag_ids, tagId],
+    }));
+
+  const toggleEditTag = (tagId: number) =>
+    setEditForm((f) => ({
+      ...f,
+      tag_ids: f.tag_ids.includes(tagId)
+        ? f.tag_ids.filter((id) => id !== tagId)
+        : [...f.tag_ids, tagId],
+    }));
 
   const ensureTemplates = async () => {
     if (templates.length > 0) return;
@@ -129,6 +233,7 @@ export default function PlansPage() {
         description: form.description.trim() || null,
         is_public: form.is_public,
         workouts: [],
+        tag_ids: form.tag_ids,
       });
       setPlans((prev) => [created, ...prev]);
       setForm(emptyForm());
@@ -171,7 +276,7 @@ export default function PlansPage() {
   const openEdit = async (plan: Plan) => {
     await ensureTemplates();
     setEditingId(plan.id);
-    setEditForm({ name: plan.name, description: plan.description ?? "", is_public: plan.is_public });
+    setEditForm({ name: plan.name, description: plan.description ?? "", is_public: plan.is_public, tag_ids: plan.tags.map((t) => t.id) });
     setEditWorkouts(
       plan.workouts.map((w) => ({
         id: w.id,
@@ -199,6 +304,7 @@ export default function PlansPage() {
           day: w.day.trim() !== "" ? Number(w.day) : null,
           notes: w.notes.trim() || null,
         })),
+        tag_ids: editForm.tag_ids,
       });
       setPlans((prev) => prev.map((p) => (p.id === plan.id ? updated : p)));
       setEditingId(null);
@@ -258,68 +364,192 @@ export default function PlansPage() {
 
   return (
     <div className="space-y-6">
-      {/* Subscription price card */}
-      <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
+      {/* Subscription tiers card */}
+      <div className="rounded-lg border border-border bg-card p-4 shadow-sm space-y-3">
         <div className="flex items-center justify-between">
-          <div>
-            <p className="flex items-center gap-1.5 text-sm font-medium">
-              <Star className="h-4 w-4 text-primary" />
-              Precio de suscripción mensual
-            </p>
-            {coachProfile?.subscription_xp_price != null ? (
-              <p className="mt-0.5 text-2xl font-bold text-primary">
-                {coachProfile.subscription_xp_price.toLocaleString()}{" "}
-                <span className="text-base font-medium text-muted-foreground">XP / mes</span>
-              </p>
+          <p className="flex items-center gap-1.5 text-sm font-semibold">
+            <Star className="h-4 w-4 text-primary" />
+            Tiers de suscripción
+          </p>
+          <button
+            onClick={() => { setShowCreateTier(true); setEditingTierId(null); }}
+            className="flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-secondary"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Nuevo tier
+          </button>
+        </div>
+
+        {tiers.length === 0 && !showCreateTier && (
+          <p className="text-xs text-muted-foreground">
+            Sin tiers — crea al menos uno para que los atletas puedan suscribirse.
+          </p>
+        )}
+
+        {/* Tier list */}
+        <div className="space-y-2">
+          {tiers.map((tier) =>
+            editingTierId === tier.id ? (
+              <div key={tier.id} className="rounded-md border border-primary/40 bg-secondary/30 p-3 space-y-2">
+                <input
+                  type="text"
+                  value={editTierForm.name}
+                  onChange={(e) => setEditTierForm((f) => ({ ...f, name: e.target.value }))}
+                  placeholder="Nombre del tier"
+                  className="w-full rounded-md border border-border px-2 py-1.5 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  autoFocus
+                />
+                <input
+                  type="text"
+                  value={editTierForm.description}
+                  onChange={(e) => setEditTierForm((f) => ({ ...f, description: e.target.value }))}
+                  placeholder="Descripción (opcional)"
+                  className="w-full rounded-md border border-border px-2 py-1.5 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min="0"
+                    value={editTierForm.xp_per_month}
+                    onChange={(e) => setEditTierForm((f) => ({ ...f, xp_per_month: e.target.value }))}
+                    placeholder="XP / mes"
+                    className="w-28 rounded-md border border-border px-2 py-1.5 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                  <span className="text-xs text-muted-foreground">XP / mes</span>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">Tags incluidos (vacío = acceso total)</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {allTags.map((tag) => (
+                      <button
+                        key={tag.id}
+                        type="button"
+                        onClick={() => setEditTierForm((f) => ({
+                          ...f,
+                          tag_ids: f.tag_ids.includes(tag.id) ? f.tag_ids.filter((id) => id !== tag.id) : [...f.tag_ids, tag.id],
+                        }))}
+                        className={cn(
+                          "rounded-full px-2.5 py-0.5 text-xs font-medium border transition-colors",
+                          editTierForm.tag_ids.includes(tag.id) ? "text-white border-transparent" : "bg-transparent border-border text-muted-foreground"
+                        )}
+                        style={editTierForm.tag_ids.includes(tag.id) ? { backgroundColor: tag.color, borderColor: tag.color } : {}}
+                      >
+                        {tag.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={handleSaveEditTier} disabled={savingEditTier || !editTierForm.name.trim()} className="flex items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50">
+                    {savingEditTier ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                    Guardar
+                  </button>
+                  <button onClick={() => setEditingTierId(null)} className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-secondary">
+                    Cancelar
+                  </button>
+                </div>
+              </div>
             ) : (
-              <p className="mt-0.5 text-sm text-muted-foreground">
-                Sin precio — tus planes privados no son visibles para atletas
-              </p>
-            )}
-          </div>
-          {!editingPrice ? (
-            <button
-              onClick={() => {
-                setEditingPrice(true);
-                setPriceInput(String(coachProfile?.subscription_xp_price ?? ""));
-              }}
-              className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-secondary"
-            >
-              {coachProfile?.subscription_xp_price != null ? "Cambiar" : "Establecer precio"}
-            </button>
-          ) : (
+              <div key={tier.id} className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-medium">{tier.name}</p>
+                    <p className="text-sm font-bold text-primary">{tier.xp_per_month.toLocaleString()} XP/mes</p>
+                  </div>
+                  {tier.description && <p className="text-xs text-muted-foreground">{tier.description}</p>}
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {tier.tags.length === 0 ? (
+                      <span className="text-xs text-muted-foreground italic">Acceso total</span>
+                    ) : (
+                      tier.tags.map((tag) => (
+                        <span key={tag.id} className="rounded-full px-2 py-0.5 text-xs font-medium text-white" style={{ backgroundColor: tag.color }}>
+                          {tag.name}
+                        </span>
+                      ))
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 shrink-0 ml-2">
+                  <button onClick={() => openEditTier(tier)} className="rounded p-1.5 text-muted-foreground hover:bg-secondary hover:text-foreground">
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                  <button onClick={() => handleDeleteTier(tier.id)} disabled={deletingTierId === tier.id} className="rounded p-1.5 text-muted-foreground hover:bg-secondary hover:text-destructive disabled:opacity-50">
+                    {deletingTierId === tier.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                  </button>
+                </div>
+              </div>
+            )
+          )}
+        </div>
+
+        {/* Create tier form */}
+        {showCreateTier && (
+          <div className="rounded-md border border-primary/40 bg-secondary/30 p-3 space-y-2">
+            <p className="text-xs font-semibold">Nuevo tier</p>
+            <input
+              type="text"
+              value={tierForm.name}
+              onChange={(e) => setTierForm((f) => ({ ...f, name: e.target.value }))}
+              placeholder="Nombre (ej. Básico, Avanzado)"
+              className="w-full rounded-md border border-border px-2 py-1.5 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              autoFocus
+            />
+            <input
+              type="text"
+              value={tierForm.description}
+              onChange={(e) => setTierForm((f) => ({ ...f, description: e.target.value }))}
+              placeholder="Descripción (opcional)"
+              className="w-full rounded-md border border-border px-2 py-1.5 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+            />
             <div className="flex items-center gap-2">
               <input
                 type="number"
                 min="0"
-                value={priceInput}
-                onChange={(e) => setPriceInput(e.target.value)}
-                placeholder="XP"
-                className="w-24 rounded-md border border-border px-2 py-1.5 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                autoFocus
+                value={tierForm.xp_per_month}
+                onChange={(e) => setTierForm((f) => ({ ...f, xp_per_month: e.target.value }))}
+                placeholder="XP / mes"
+                className="w-28 rounded-md border border-border px-2 py-1.5 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
               />
-              <button
-                onClick={handleSavePrice}
-                disabled={savingPrice}
-                className="flex items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-              >
-                {savingPrice ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
-                Guardar
+              <span className="text-xs text-muted-foreground">XP / mes</span>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">Tags incluidos (vacío = acceso total a planes privados)</p>
+              <div className="flex flex-wrap gap-1.5">
+                {allTags.map((tag) => (
+                  <button
+                    key={tag.id}
+                    type="button"
+                    onClick={() => setTierForm((f) => ({
+                      ...f,
+                      tag_ids: f.tag_ids.includes(tag.id) ? f.tag_ids.filter((id) => id !== tag.id) : [...f.tag_ids, tag.id],
+                    }))}
+                    className={cn(
+                      "rounded-full px-2.5 py-0.5 text-xs font-medium border transition-colors",
+                      tierForm.tag_ids.includes(tag.id) ? "text-white border-transparent" : "bg-transparent border-border text-muted-foreground"
+                    )}
+                    style={tierForm.tag_ids.includes(tag.id) ? { backgroundColor: tag.color, borderColor: tag.color } : {}}
+                  >
+                    {tag.name}
+                  </button>
+                ))}
+                {allTags.length === 0 && <p className="text-xs text-muted-foreground italic">No hay tags creados aún</p>}
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={handleCreateTier} disabled={savingTier || !tierForm.name.trim()} className="flex items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50">
+                {savingTier ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+                Crear
               </button>
-              <button
-                onClick={() => setEditingPrice(false)}
-                className="rounded-md border border-border px-2 py-1.5 text-xs font-medium hover:bg-secondary"
-              >
-                <X className="h-3.5 w-3.5" />
+              <button onClick={() => setShowCreateTier(false)} className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-secondary">
+                Cancelar
               </button>
             </div>
-          )}
-        </div>
-        {coachProfile != null && (
-          <p className="mt-2 text-xs text-muted-foreground">
+          </div>
+        )}
+
+        {coachProfile != null && coachProfile.subscriber_count > 0 && (
+          <p className="text-xs text-muted-foreground">
             {coachProfile.subscriber_count} atleta{coachProfile.subscriber_count !== 1 ? "s" : ""} suscrito{coachProfile.subscriber_count !== 1 ? "s" : ""}
-            {" · "}
-            Los atletas suscritos pueden ver todos tus planes privados
           </p>
         )}
       </div>
@@ -342,6 +572,28 @@ export default function PlansPage() {
           Nuevo plan
         </button>
       </div>
+
+      {/* Tags overview */}
+      {allTags.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+            <Tag className="h-3.5 w-3.5" />
+            Tags:
+          </span>
+          {allTags.map((tag) => (
+            <span key={tag.id} className="group flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium text-white" style={{ backgroundColor: tag.color }}>
+              {tag.name}
+              <button
+                onClick={() => handleDeleteTag(tag.id)}
+                className="hidden group-hover:inline-flex items-center opacity-70 hover:opacity-100"
+                title="Eliminar tag"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Create form */}
       {showCreate && (
@@ -387,6 +639,74 @@ export default function PlansPage() {
               <label htmlFor="plan_is_public" className="text-sm">
                 Público
               </label>
+            </div>
+            {/* Tags */}
+            <div className="sm:col-span-2 space-y-2">
+              <label className="block text-xs text-muted-foreground">Tags</label>
+              <div className="flex flex-wrap gap-1.5">
+                {allTags.map((tag) => (
+                  <button
+                    key={tag.id}
+                    type="button"
+                    onClick={() => toggleFormTag(tag.id)}
+                    className={cn(
+                      "flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium border transition-colors",
+                      form.tag_ids.includes(tag.id)
+                        ? "text-white border-transparent"
+                        : "bg-transparent border-border text-muted-foreground hover:border-primary"
+                    )}
+                    style={form.tag_ids.includes(tag.id) ? { backgroundColor: tag.color, borderColor: tag.color } : {}}
+                  >
+                    {tag.name}
+                  </button>
+                ))}
+                {!showNewTag && (
+                  <button
+                    type="button"
+                    onClick={() => setShowNewTag(true)}
+                    className="flex items-center gap-1 rounded-full border border-dashed border-border px-2.5 py-0.5 text-xs text-muted-foreground hover:border-primary hover:text-primary"
+                  >
+                    <Plus className="h-3 w-3" />
+                    Nuevo tag
+                  </button>
+                )}
+              </div>
+              {showNewTag && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <input
+                    type="text"
+                    value={newTagName}
+                    onChange={(e) => setNewTagName(e.target.value)}
+                    placeholder="Nombre del tag"
+                    className="rounded-md border border-border px-2 py-1 text-xs focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                    autoFocus
+                    onKeyDown={(e) => e.key === "Enter" && handleCreateTag()}
+                  />
+                  <div className="flex gap-1">
+                    {PRESET_COLORS.map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => setNewTagColor(c)}
+                        className={cn("h-5 w-5 rounded-full border-2", newTagColor === c ? "border-foreground" : "border-transparent")}
+                        style={{ backgroundColor: c }}
+                      />
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCreateTag}
+                    disabled={savingTag || !newTagName.trim()}
+                    className="flex items-center gap-1 rounded-md bg-primary px-2 py-1 text-xs font-medium text-primary-foreground disabled:opacity-50"
+                  >
+                    {savingTag ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+                    Crear
+                  </button>
+                  <button type="button" onClick={() => setShowNewTag(false)} className="text-xs text-muted-foreground hover:underline">
+                    Cancelar
+                  </button>
+                </div>
+              )}
             </div>
           </div>
           <div className="mt-4 flex gap-2">
@@ -462,6 +782,74 @@ export default function PlansPage() {
                         />
                         Público
                       </label>
+                      {/* Tags in edit */}
+                      <div className="space-y-1.5">
+                        <p className="text-xs text-muted-foreground">Tags</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {allTags.map((tag) => (
+                            <button
+                              key={tag.id}
+                              type="button"
+                              onClick={() => toggleEditTag(tag.id)}
+                              className={cn(
+                                "flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium border transition-colors",
+                                editForm.tag_ids.includes(tag.id)
+                                  ? "text-white border-transparent"
+                                  : "bg-transparent border-border text-muted-foreground hover:border-primary"
+                              )}
+                              style={editForm.tag_ids.includes(tag.id) ? { backgroundColor: tag.color, borderColor: tag.color } : {}}
+                            >
+                              {tag.name}
+                            </button>
+                          ))}
+                          {!showNewTag && (
+                            <button
+                              type="button"
+                              onClick={() => setShowNewTag(true)}
+                              className="flex items-center gap-1 rounded-full border border-dashed border-border px-2.5 py-0.5 text-xs text-muted-foreground hover:border-primary hover:text-primary"
+                            >
+                              <Plus className="h-3 w-3" />
+                              Nuevo tag
+                            </button>
+                          )}
+                        </div>
+                        {showNewTag && (
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <input
+                              type="text"
+                              value={newTagName}
+                              onChange={(e) => setNewTagName(e.target.value)}
+                              placeholder="Nombre del tag"
+                              className="rounded-md border border-border px-2 py-1 text-xs focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                              autoFocus
+                              onKeyDown={(e) => e.key === "Enter" && handleCreateTag()}
+                            />
+                            <div className="flex gap-1">
+                              {PRESET_COLORS.map((c) => (
+                                <button
+                                  key={c}
+                                  type="button"
+                                  onClick={() => setNewTagColor(c)}
+                                  className={cn("h-5 w-5 rounded-full border-2", newTagColor === c ? "border-foreground" : "border-transparent")}
+                                  style={{ backgroundColor: c }}
+                                />
+                              ))}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={handleCreateTag}
+                              disabled={savingTag || !newTagName.trim()}
+                              className="flex items-center gap-1 rounded-md bg-primary px-2 py-1 text-xs font-medium text-primary-foreground disabled:opacity-50"
+                            >
+                              {savingTag ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+                              Crear
+                            </button>
+                            <button type="button" onClick={() => setShowNewTag(false)} className="text-xs text-muted-foreground hover:underline">
+                              Cancelar
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     {/* Workouts */}
@@ -658,6 +1046,19 @@ export default function PlansPage() {
                           {plan.workouts.length !== 1 ? "s" : ""}
                           {plan.is_public && " · Público"}
                         </p>
+                        {plan.tags.length > 0 && (
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {plan.tags.map((tag) => (
+                              <span
+                                key={tag.id}
+                                className="rounded-full px-2 py-0.5 text-xs font-medium text-white"
+                                style={{ backgroundColor: tag.color }}
+                              >
+                                {tag.name}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">

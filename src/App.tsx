@@ -36,6 +36,7 @@ export default function App() {
             <Route element={<AppLayout />}>
               {/* Athlete routes */}
               <Route path="/" element={<DashboardPage />} />
+              <Route path="/workouts" element={<TemplatesPage />} />
               <Route path="/coach/workouts" element={<TemplatesPage />} />
               <Route path="/coach/plans" element={<PlansPage />} />
               <Route path="/coach/athletes" element={<CoachPage tab="athletes" />} />

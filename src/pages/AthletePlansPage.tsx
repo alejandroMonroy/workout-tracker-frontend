@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 import { api } from "@/services/api";
-import type { CoachPublic, Plan, WorkoutTemplate } from "@/types/api";
+import { useAuth } from "@/hooks/useAuth";
+import type { CoachPublic, CoachTier, Plan, WorkoutTemplate } from "@/types/api";
 import {
   BookOpen,
   CheckCircle2,
@@ -9,6 +10,8 @@ import {
   Loader2,
   Lock,
   Play,
+  Star,
+  User,
   Users,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -26,6 +29,7 @@ const MODALITY_LABEL: Record<string, string> = {
 
 export default function AthletePlansPage() {
   const navigate = useNavigate();
+  const { user: currentUser } = useAuth();
   const [tab, setTab] = useState<Tab>("all");
 
   // Plans state
@@ -43,6 +47,9 @@ export default function AthletePlansPage() {
   const [loadingCoaches, setLoadingCoaches] = useState(false);
   const [coachesLoaded, setCoachesLoaded] = useState(false);
   const [actingCoachId, setActingCoachId] = useState<number | null>(null);
+  // tier picker: coachId -> selected tier id
+  const [expandedCoachId, setExpandedCoachId] = useState<number | null>(null);
+  const [selectedTierId, setSelectedTierId] = useState<number | null>(null);
 
   const loadPlans = async (t: Tab) => {
     setLoadingPlans(true);
@@ -134,19 +141,36 @@ export default function AthletePlansPage() {
     }
   };
 
-  const handleSubscribeCoach = async (coach: CoachPublic) => {
+  const handleSubscribeCoach = async (coach: CoachPublic, tier: CoachTier) => {
     setActingCoachId(coach.id);
     try {
-      await api.post(`/api/coaches/${coach.id}/subscribe`);
+      await api.post(`/api/coaches/${coach.id}/subscribe`, { tier_id: tier.id });
       setCoaches((prev) =>
         prev.map((c) =>
           c.id === coach.id
-            ? { ...c, is_subscribed: true, subscriber_count: c.subscriber_count + 1 }
+            ? { ...c, is_subscribed: true, current_tier_id: tier.id, subscriber_count: c.subscriber_count + 1 }
             : c
         )
       );
-      // Reload "all" plans to include newly unlocked private plans
+      setExpandedCoachId(null);
+      setSelectedTierId(null);
       if (tab !== "coaches") loadPlans(tab);
+    } catch {}
+    setActingCoachId(null);
+  };
+
+  const handleChangeTier = async (coach: CoachPublic, tier: CoachTier) => {
+    setActingCoachId(coach.id);
+    try {
+      await api.patch(`/api/coaches/${coach.id}/subscribe`, { tier_id: tier.id });
+      setCoaches((prev) =>
+        prev.map((c) =>
+          c.id === coach.id ? { ...c, current_tier_id: tier.id } : c
+        )
+      );
+      setExpandedCoachId(null);
+      setSelectedTierId(null);
+      loadPlans(tab === "coaches" ? "all" : tab);
     } catch {}
     setActingCoachId(null);
   };
@@ -214,58 +238,140 @@ export default function AthletePlansPage() {
             <div className="space-y-3">
               {coaches.map((coach) => {
                 const isActing = actingCoachId === coach.id;
+                const isExpanded = expandedCoachId === coach.id;
                 return (
-                  <div
-                    key={coach.id}
-                    className="rounded-lg border border-border bg-card shadow-sm px-4 py-3 flex items-center justify-between gap-4"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-sm">
-                        {coach.name.charAt(0).toUpperCase()}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="font-semibold truncate">{coach.name}</p>
-                          {coach.is_subscribed && (
-                            <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 shrink-0">
-                              Suscrito
-                            </span>
-                          )}
+                  <div key={coach.id} className="rounded-lg border border-border bg-card shadow-sm">
+                    {/* Coach header */}
+                    <div className="px-4 py-3 flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-sm">
+                          {coach.name.charAt(0).toUpperCase()}
                         </div>
-                        <p className="text-xs text-muted-foreground">
-                          {coach.plan_count} plan{coach.plan_count !== 1 ? "es" : ""} ·{" "}
-                          {coach.subscriber_count} suscriptor{coach.subscriber_count !== 1 ? "es" : ""}
-                        </p>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-semibold truncate">{coach.name}</p>
+                            {coach.is_subscribed && (
+                              <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 shrink-0">
+                                Suscrito
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {coach.plan_count} plan{coach.plan_count !== 1 ? "es" : ""} ·{" "}
+                            {coach.subscriber_count} suscriptor{coach.subscriber_count !== 1 ? "es" : ""} ·{" "}
+                            {coach.tiers.length} tier{coach.tiers.length !== 1 ? "s" : ""}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        {coach.is_subscribed ? (
+                          <>
+                            <button
+                              onClick={() => {
+                                setExpandedCoachId(isExpanded ? null : coach.id);
+                                setSelectedTierId(null);
+                              }}
+                              disabled={isActing || coach.tiers.length <= 1}
+                              className="flex items-center gap-1.5 rounded-md border border-primary px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/10 disabled:opacity-50"
+                            >
+                              {isExpanded ? "Cerrar" : "Cambiar tier"}
+                            </button>
+                            <button
+                              onClick={() => handleUnsubscribeCoach(coach)}
+                              disabled={isActing}
+                              className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:border-destructive hover:text-destructive disabled:opacity-50"
+                            >
+                              {isActing && <Loader2 className="h-3 w-3 animate-spin" />}
+                              Cancelar
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              setExpandedCoachId(isExpanded ? null : coach.id);
+                              setSelectedTierId(null);
+                            }}
+                            disabled={isActing || coach.tiers.length === 0}
+                            className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                          >
+                            {isActing && <Loader2 className="h-3 w-3 animate-spin" />}
+                            {isExpanded ? "Cerrar" : "Ver suscripciones"}
+                          </button>
+                        )}
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3 shrink-0">
-                      <div className="text-right">
-                        <p className="text-sm font-semibold text-primary">
-                          {coach.subscription_xp_price?.toLocaleString()} XP
+                    {/* Tier picker */}
+                    {isExpanded && (
+                      <div className="border-t border-border px-4 py-3 space-y-2">
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                          {coach.is_subscribed ? "Cambiar tier" : "Elige un tier"}
                         </p>
-                        <p className="text-xs text-muted-foreground">/ mes</p>
+                        <div className="space-y-2">
+                          {coach.tiers
+                            .filter((t) => !coach.is_subscribed || t.id !== coach.current_tier_id)
+                            .map((tier) => (
+                            <button
+                              key={tier.id}
+                              onClick={() => setSelectedTierId(tier.id === selectedTierId ? null : tier.id)}
+                              className={cn(
+                                "w-full rounded-md border p-3 text-left transition-colors",
+                                selectedTierId === tier.id
+                                  ? "border-primary bg-primary/5"
+                                  : "border-border hover:border-primary/50"
+                              )}
+                            >
+                              <div className="flex items-center justify-between">
+                                <p className="text-sm font-semibold">{tier.name}</p>
+                                <p className="text-sm font-bold text-primary">
+                                  {tier.xp_per_month.toLocaleString()} XP/mes
+                                </p>
+                              </div>
+                              {tier.description && (
+                                <p className="mt-0.5 text-xs text-muted-foreground">{tier.description}</p>
+                              )}
+                              <div className="mt-1.5 flex flex-wrap gap-1">
+                                {tier.tags.length === 0 ? (
+                                  <span className="flex items-center gap-1 text-xs text-muted-foreground italic">
+                                    <Star className="h-3 w-3" />
+                                    Acceso total a planes privados
+                                  </span>
+                                ) : (
+                                  tier.tags.map((tag) => (
+                                    <span
+                                      key={tag.id}
+                                      className="rounded-full px-2 py-0.5 text-xs font-medium text-white"
+                                      style={{ backgroundColor: tag.color }}
+                                    >
+                                      {tag.name}
+                                    </span>
+                                  ))
+                                )}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                        {selectedTierId != null && (
+                          <button
+                            onClick={() => {
+                              const tier = coach.tiers.find((t) => t.id === selectedTierId);
+                              if (!tier) return;
+                              if (coach.is_subscribed) {
+                                handleChangeTier(coach, tier);
+                              } else {
+                                handleSubscribeCoach(coach, tier);
+                              }
+                            }}
+                            disabled={isActing}
+                            className="flex w-full items-center justify-center gap-1.5 rounded-md bg-primary py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                          >
+                            {isActing && <Loader2 className="h-3 w-3 animate-spin" />}
+                            {coach.is_subscribed ? "Confirmar cambio" : "Confirmar suscripción"}
+                          </button>
+                        )}
                       </div>
-                      {coach.is_subscribed ? (
-                        <button
-                          onClick={() => handleUnsubscribeCoach(coach)}
-                          disabled={isActing}
-                          className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:border-destructive hover:text-destructive disabled:opacity-50"
-                        >
-                          {isActing && <Loader2 className="h-3 w-3 animate-spin" />}
-                          Cancelar
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => handleSubscribeCoach(coach)}
-                          disabled={isActing}
-                          className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-                        >
-                          {isActing && <Loader2 className="h-3 w-3 animate-spin" />}
-                          Suscribirse
-                        </button>
-                      )}
-                    </div>
+                    )}
                   </div>
                 );
               })}
@@ -292,7 +398,20 @@ export default function AthletePlansPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {plans.map((plan) => {
+              {(() => {
+                const myPlans = plans.filter((p) => p.created_by === currentUser?.id);
+                const coachPlans = plans.filter((p) => p.created_by !== currentUser?.id);
+                const coachGroups: { coachId: number; coachName: string; plans: Plan[] }[] = [];
+                for (const plan of coachPlans) {
+                  const existing = coachGroups.find((g) => g.coachId === plan.created_by);
+                  if (existing) {
+                    existing.plans.push(plan);
+                  } else {
+                    coachGroups.push({ coachId: plan.created_by, coachName: plan.creator_name, plans: [plan] });
+                  }
+                }
+
+                const renderPlan = (plan: Plan) => {
                 const isExpanded = expandedId === plan.id;
                 const isSubscribed = plan.subscription_id != null;
                 const isActing = actingPlanId === plan.id;
@@ -332,6 +451,19 @@ export default function AthletePlansPage() {
                               </span>
                             )}
                           </p>
+                          {plan.tags.length > 0 && (
+                            <div className="mt-1.5 flex flex-wrap gap-1">
+                              {plan.tags.map((tag) => (
+                                <span
+                                  key={tag.id}
+                                  className="rounded-full px-2 py-0.5 text-xs font-medium text-white"
+                                  style={{ backgroundColor: tag.color }}
+                                >
+                                  {tag.name}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -446,7 +578,28 @@ export default function AthletePlansPage() {
                     )}
                   </div>
                 );
-              })}
+                };
+
+                return (
+                  <>
+                    {myPlans.map(renderPlan)}
+                    {coachGroups.map((group) => (
+                      <div key={group.coachId} className="space-y-2">
+                        <div className="flex items-center gap-2 pt-2">
+                          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                            <User className="h-3.5 w-3.5 text-primary" />
+                          </div>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                            Coach: {group.coachName}
+                          </p>
+                          <div className="flex-1 border-t border-border" />
+                        </div>
+                        {group.plans.map(renderPlan)}
+                      </div>
+                    ))}
+                  </>
+                );
+              })()}
             </div>
           )}
         </>

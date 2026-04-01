@@ -366,7 +366,7 @@ function HistoryTab() {
 
   useEffect(() => {
     api.get<SessionListItem[]>("/api/sessions?limit=50")
-      .then(setSessions)
+      .then((data) => setSessions(data.filter((s) => s.finished_at)))
       .catch(() => {})
       .finally(() => setLoading(false));
 
@@ -422,7 +422,7 @@ function HistoryTab() {
           <ListChecks className="h-5 w-5 text-primary" />
           Historial
         </h2>
-        <p className="text-muted-foreground">Sesiones y evolución de tus entrenamientos</p>
+        <p className="text-muted-foreground">Workouts completados y evolución de tus entrenamientos</p>
       </div>
 
       {/* Progress chart */}
@@ -463,7 +463,7 @@ function HistoryTab() {
               </div>
             ) : chartData.length < 2 ? (
               <div className="flex h-48 items-center justify-center rounded-lg border border-dashed border-border">
-                <p className="text-sm text-muted-foreground">Completa al menos 2 sesiones para ver tu progreso</p>
+                <p className="text-sm text-muted-foreground">Completa al menos 2 workouts para ver tu progreso</p>
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={220}>
@@ -501,7 +501,7 @@ function HistoryTab() {
           )}
         >
           <ListChecks className="h-4 w-4" />
-          Sesiones
+          Workouts
         </button>
         <button
           onClick={() => setSubTab("records")}
@@ -523,7 +523,7 @@ function HistoryTab() {
         ) : sessions.length === 0 ? (
           <div className="flex flex-col items-center gap-3 py-16 text-center">
             <ListChecks className="h-12 w-12 text-muted-foreground/50" />
-            <p className="text-muted-foreground">No tienes sesiones aún. ¡Empieza una desde el menú lateral!</p>
+            <p className="text-muted-foreground">No tienes workouts completados aún. ¡Empieza uno desde Workouts!</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -531,7 +531,7 @@ function HistoryTab() {
               <div key={s.id} className="relative rounded-lg border border-border bg-card shadow-sm transition-colors hover:bg-secondary/50">
                 {confirmDeleteId === s.id && (
                   <div className="absolute inset-0 z-10 flex items-center justify-center gap-3 rounded-lg bg-white/95 backdrop-blur-sm">
-                    <p className="text-sm font-medium text-destructive">¿Eliminar sesión #{s.id}?</p>
+                    <p className="text-sm font-medium text-destructive">¿Eliminar workout?</p>
                     <button
                       onClick={() => handleDelete(s.id)}
                       disabled={deletingId === s.id}
@@ -550,10 +550,7 @@ function HistoryTab() {
                 <div onClick={() => navigate(`/sessions/${s.id}`)} className="flex cursor-pointer items-center justify-between p-4">
                   <div>
                     <p className="font-medium">
-                      Sesión #{s.id}
-                      {s.template_id && (
-                        <span className="ml-2 rounded bg-primary/10 px-1.5 py-0.5 text-xs text-primary">Template</span>
-                      )}
+                      {s.template_name ?? `Workout #${s.id}`}
                     </p>
                     <p className="mt-0.5 text-sm text-muted-foreground">
                       {formatDate(s.started_at)} · {s.exercise_count} ejercicios · {s.set_count} series

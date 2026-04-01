@@ -1,10 +1,10 @@
 import { api } from "@/services/api";
 import type { CoachPublic } from "@/types/api";
 import {
-    Loader2,
-    Search,
-    Users,
-    Zap,
+  Loader2,
+  Search,
+  Users,
+  Zap,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 
